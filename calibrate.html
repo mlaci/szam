@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>One and half degree</title>
+  <meta name="description" content="Burn your future with colorful pictures">
+  <link href="work-sans.css" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      height: 100vh;
+    }
+    .hidden {
+      display: none;
+    }
+    #canvas-container {
+      resize: vertical;
+      overflow: hidden;
+      height: 50%;
+      background-position: 0px 0px, 10px 10px;
+      background-size: 20px 20px;
+      background-image: repeating-conic-gradient(gray 0% 25%, white 0% 50%);
+    }
+    canvas {
+      display: block;
+      height: 100%;
+      margin: 0 auto;
+      image-rendering: crisp-edges;
+      image-rendering: pixelated;
+    }
+    #overlay-canvas {
+      --color: red;
+      --size: 50px;
+      --width: 2px;
+      position: relative;
+      top: -100%;
+      border: var(--width) solid var(--color);
+      background-position: center;
+      background-size: var(--size) var(--size);
+      background-image: 
+        linear-gradient(
+          to right, 
+          transparent calc(50% - var(--width)/2), 
+          var(--color) calc(50% - var(--width)/2), 
+          var(--color) calc(50% + var(--width)/2), 
+          transparent calc(50% + var(--width)/2)
+        ),
+        linear-gradient(
+          to bottom, 
+          transparent calc(50% - var(--width)/2),
+          var(--color) calc(50% - var(--width)/2), 
+          var(--color) calc(50% + var(--width)/2), 
+          transparent calc(50% + var(--width)/2)
+        );
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div class="input" id="textSelector">
+    <label>Alphabet</label>
+    <input type="text" value="0,1,2,3,4,5,6,7,8,9">
+    <label>Text</label>
+    <input type="range" min="0" max="9" value="0">
+  </div>
+  <div class="input" id="fontFamily">
+    <label>Font family</label>
+    <input type="text" value="'Work Sans', Arial, san-serif">
+  </div>
+  <div class="input" id="fontSize">
+    <label>Font size</label>
+    <input type="number" min="6" max="1000" value="7">
+    <input type="range" min="6" max="1000" value="7">
+  </div>
+  <div class="input" id="fontWeight">
+    <label>Font weight</label>
+    <input type="number" min="400" max="600" value="600">
+    <input type="range" min="400" max="600" value="600">
+  </div>
+  <div class="input" id="paddingSmallX">
+    <label>Padding small X</label>
+    <input type="number" min="-0.3" max="0" value="-0.2" step="0.001">
+    <input type="range" min="-0.3" max="0" value="-0.2" step="0.001">
+  </div>
+  <div class="input" id="paddingPointX">
+    <label>Padding point X</label>
+    <input type="number" min="6" max="1000" value="15">
+    <input type="range" min="6" max="1000" value="15">
+  </div>
+  <div class="input" id="paddingBigX">
+    <label>Padding big X</label>
+    <input type="number" min="0" max="0.3" value="0.05" step="0.001">
+    <input type="range" min="0" max="0.3" value="0.05" step="0.001">
+  </div>
+  <div class="input" id="paddingY">
+    <label>Padding Y</label>
+    <input type="number" min="0" max="0.3" value="0.04" step="0.001">
+    <input type="range" min="0" max="0.3" value="0.04" step="0.001">
+  </div>
+  <div class="input" id="baseline">
+    <label>Baseline</label>
+    <input type="checkbox" checked>
+  </div>
+  <div class="input" id="grid">
+    <label>Grid</label>
+    <input type="checkbox" checked>
+    <input type="number" min="0" max="500" value="50">
+    <input type="range" min="0" max="500" value="50">
+  </div>
+  <div id="canvas-container" contenteditable="true">
+    <canvas id="font-canvas" width="80" height="100"></canvas>
+    <canvas id="overlay-canvas" width="80" height="100"></canvas>
+  </div>
+  <script src="./calibrate.js" type="module"></script>
+</body>
+</html>
