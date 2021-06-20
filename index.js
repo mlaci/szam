@@ -8,7 +8,8 @@ import {
   setBufferValue,
   logScale,
   randomize,
-  compose
+  compose,
+  blobToImageData
 } from "./util.js"
 
 import {
@@ -29,25 +30,8 @@ import { getColor } from "./color.js"
 
 const SMALLEST_FONT = 7
 const ANIMATION = true
-const MIN_VALUE = 0.0001
 const BACKGROUND_COLOR = [255, 255, 255]
 const ALPHABET = [..."0123456789"]
-
-
-const blobCanvas = createCanvas()
-async function blobToImageData(blob, widthMax, heightMax){
-  const img = document.createElement("img")
-  img.decoding = "async"
-  img.src = URL.createObjectURL(blob)
-  await new Promise(resolve=>img.addEventListener("load", resolve))
-  const {width, height} = fit(img.width, img.height, widthMax, heightMax)
-  blobCanvas.width = width
-  blobCanvas.height = height
-  const context = blobCanvas.getContext("2d")
-  context.drawImage(img, 0, 0, blobCanvas.width, blobCanvas.height)
-  URL.revokeObjectURL(img.src)
-  return context.getImageData(0, 0, blobCanvas.width, blobCanvas.height)
-}
 
 const blobRequest = fetch("https://upload.wikimedia.org/wikipedia/commons/1/1c/1998_Chevrolet_Corvette_C5_at_Hatfield_Heath_Festival_2017.jpg").then(response=>response.blob())
 

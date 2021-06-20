@@ -6,9 +6,11 @@ export function fit(width, height, widthMax, heightMax){
 export function ease(n, factor = 1){
   return n==0 ? 0 : n**factor
 }
+
 export function easeInOut(n, factor){
   return n<0.5 ? ease(n*2, factor)/2 : 1-ease(2-n*2, factor)/2
 }
+
 export function createCanvas(width = 0, height = 0){
   const canvas = document.createElement("canvas")
   canvas.width = width
@@ -73,4 +75,16 @@ export function compose(dest, source, type = "source-over"){
   destContext.globalCompositeOperation = type
   destContext.drawImage(source, 0, 0)
   destContext.globalCompositeOperation = old
+}
+
+export async function blobToImageData(blob, widthMax, heightMax){
+  const img = document.createElement("img")
+  img.decoding = "async"
+  img.src = URL.createObjectURL(blob)
+  await new Promise(resolve=>img.addEventListener("load", resolve))
+  const {width, height} = fit(img.width, img.height, widthMax, heightMax)
+  const canvas = createCanvas(width, height)
+  canvas.context.drawImage(img, 0, 0, canvas.width, canvas.height)
+  URL.revokeObjectURL(img.src)
+  return canvas.context.getImageData(0, 0, canvas.width, canvas.height)
 }
