@@ -1,4 +1,5 @@
 import { colorDistance } from "./image.js"
+const MIN_VALUE = 0.0001
 function centroid(vectors){
   const sum = [0, 0, 0]
   for(const vector of vectors){
