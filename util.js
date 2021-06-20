@@ -74,18 +74,3 @@ export function compose(dest, source, type = "source-over"){
   destContext.drawImage(source, 0, 0)
   destContext.globalCompositeOperation = old
 }
-
-//https://en.wikipedia.org/wiki/Alpha_compositing
-export function alphaBlendTo(color, background){
-  const alpha = color[3]
-  const bgAlpha = background[3]
-  const ratio = alpha/255
-  const bgRatio = bgAlpha/255*(1-ratio)
-  const newAlpha = ratio + bgRatio
-  return [
-    (color[0]*ratio + background[0]*bgRatio)/newAlpha,
-    (color[1]*ratio + background[1]*bgRatio)/newAlpha,
-    (color[2]*ratio + background[2]*bgRatio)/newAlpha,
-    newAlpha*255
-  ]
-}

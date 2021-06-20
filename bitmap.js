@@ -1,4 +1,5 @@
-import { createCanvas, getPixel, setPixel, alphaBlendTo } from "./util.js"
+import { alphaBlendTo } from "./image.js"
+import { createCanvas, getPixel, setPixel } from "./util.js"
 
 class FontProp {
   weight
