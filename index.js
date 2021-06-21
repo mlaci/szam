@@ -101,12 +101,12 @@ async function main(){
     const diffArrayFlat = new Float32Array(flatten(diffArray, diffArray.width, padding, grid, cell).buffer)
     for (let w = 0; w < grid.height; w++){
       for (let z = 0; z < grid.width; z++){
-        const alphabet = [...randomize(bitmaps)]
+        const alphabet = [...randomize([...Array(bitmaps.length)].map((_,i)=>i))]
         const p = {
           best: {
             penalty: Infinity,
             color: [255, 255, 255],
-            bitmap: alphabet[0]
+            bitmap: 0
           }, 
           offset: (z + w * grid.width) * cell.length,
           alphabet
@@ -114,35 +114,22 @@ async function main(){
         cells.push(p)
       }
     }
-    const lettersFlat2 = flattenImage(image, padding, grid, cell)
-    for(let i = 0; i< ALPHABET.length; i++){
-      const letters = new ImageData(image.data.slice(0), image.width, image.height)
-      const lettersFlat = new ImageData(lettersFlat2.data.slice(0), lettersFlat2.width, lettersFlat2.height)
-      for(let cell of cells){
-        const {offset, alphabet} = cell
-        const bitmap = alphabet[i]
-        const colors = maskBitmapColorsFrom(originalFlat, offset, bitmap)
-        cell.color = getColor(colors).map(val=>gam_sRGB(val/255)*255)
-        drawBitmapTo(lettersFlat, offset, bitmap, cell.color)
-      }
-      unflattenImageTo(letters, lettersFlat, padding, grid, cell)
-      context.putImageData(letters, 0, 0)
-      for(let {alphabet, color, offset, best} of cells){
-        const bitmap = alphabet[i]
-        const diffPenalty = getPenalty(originalFlat, lettersFlat, diffArrayFlat, offset, bitmap)
-        if (diffPenalty < best.penalty) {
-          best.penalty = diffPenalty
-          best.bitmap = bitmap
-          best.color = color
-        }
-      }
+    const lettersFlat = flattenImage(image, padding, grid, cell)
+    for(let row = 0; row<grid.height; row++){
+      const globalOffset = row * grid.width * cell.length
+      const cellsRow = cells.slice(row*grid.width, (row+1)*grid.width)
+      const originalFlatRow = new ImageData(originalFlat.data.slice(globalOffset*4, (row+1)*grid.width*cell.length*4), cell.width)
+      const imageFlatRow = new ImageData(imageFlat.data.slice(globalOffset*4, (row+1)*grid.width*cell.length*4), cell.width)
+      const lettersFlatRow = new ImageData(lettersFlat.data.slice(globalOffset*4, (row+1)*grid.width*cell.length*4), cell.width)
+      const diffArrayFlatRow = diffArrayFlat.slice(globalOffset, (row+1)*grid.width*cell.length)
+      const result = await calc(originalFlatRow, imageFlatRow, lettersFlatRow, diffArrayFlatRow, cellsRow, globalOffset, bitmaps)
+      imageFlat.data.set(result.imageFlat.data, globalOffset*4)
+      diffArrayFlat.set(result.diffArrayFlat, globalOffset)
+      unflattenImageTo(image, imageFlat, padding, grid, cell)
+      context.putImageData(image, 0, 0)
       if(ANIMATION){
         await new Promise((resolve) => setTimeout(resolve, 0))
       }
-    }
-    for(let {best: {bitmap, color}, offset} of cells){
-      drawBitmapTo(imageFlat, offset, bitmap, color)
-      setDiff(imageFlat, originalFlat, diffArrayFlat, offset, bitmap)
     }
     unflattenImageTo(image, imageFlat, padding, grid, cell)
     unflattenTo(diffArray, diffArrayFlat, diffArray.width, padding, grid, cell)
@@ -161,6 +148,34 @@ async function main(){
   }
 }
 main()
+
+async function calc(originalFlat, imageFlat, lettersFlat2, diffArrayFlat, cells, globalOffset, bitmaps){
+  for(let i = 0; i< ALPHABET.length; i++){
+    const lettersFlat = new ImageData(lettersFlat2.data.slice(0), lettersFlat2.width, lettersFlat2.height)
+    for(let cell of cells){
+      const {offset, alphabet} = cell
+      const bitmap = bitmaps[alphabet[i]]
+      const colors = maskBitmapColorsFrom(originalFlat, offset - globalOffset, bitmap)
+      cell.color = getColor(colors).map(val=>gam_sRGB(val/255)*255)
+      drawBitmapTo(lettersFlat, offset - globalOffset, bitmap, cell.color)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    for(let {alphabet, color, offset, best} of cells){
+      const bitmap = bitmaps[alphabet[i]]
+      const diffPenalty = getPenalty(originalFlat, lettersFlat, diffArrayFlat, offset - globalOffset, bitmap)
+      if (diffPenalty < best.penalty) {
+        best.penalty = diffPenalty
+        best.bitmap = bitmap
+        best.color = color
+      }
+    }
+  }
+  for(let {best: {bitmap, color}, offset} of cells){
+    drawBitmapTo(imageFlat, offset - globalOffset, bitmap, color)
+    setDiff(imageFlat, originalFlat, diffArrayFlat, offset - globalOffset, bitmap)
+  }
+  return {imageFlat, diffArrayFlat}
+}
 
 function getPenalty(original, image, diffArray, cellOffset, bitmap){
   let penalty = 0
