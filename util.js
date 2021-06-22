@@ -3,6 +3,17 @@ export function fit(width, height, widthMax, heightMax){
   return {width: width*ratio, height: height*ratio}
 }
 
+export function split(array, size = 1){
+  const length = Math.ceil(array.length / size)
+  const result = []
+  var index = 0
+  while (index < array.length){
+    result.push(array.slice(index, index + length))
+    index = index + length
+  }
+  return result
+}
+
 export function ease(n, factor = 1){
   return n==0 ? 0 : n**factor
 }

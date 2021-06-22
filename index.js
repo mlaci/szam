@@ -1,7 +1,6 @@
 import {
-  fit,
+  split,
   ease,
-  createCanvas,
   createCanvasFrom,
   getPixel,
   getBufferValue,
@@ -28,10 +27,16 @@ import {
 
 import { getColor } from "./color.js"
 
+import { WorkerProxy } from "./proxy.js"
+
 const SMALLEST_FONT = 7
 const ANIMATION = true
 const BACKGROUND_COLOR = [255, 255, 255]
 const ALPHABET = [..."0123456789"]
+
+const threads = Math.max(1, navigator.hardwareConcurrency-1)
+
+const workers = [...Array(threads)].map(()=>new WorkerProxy(new Worker("./worker.js", {type: "module"})))
 
 const blobRequest = fetch("https://upload.wikimedia.org/wikipedia/commons/1/1c/1998_Chevrolet_Corvette_C5_at_Hatfield_Heath_Festival_2017.jpg").then(response=>response.blob())
 
@@ -76,6 +81,9 @@ async function main(){
       y: 0.02
     }
     const bitmaps = await getBitmaps(ALPHABET, cellHeight, fontWeight, fontFamily, true, fontPadding)
+    for(const worker of workers){
+      await worker.setBitmaps(bitmaps)
+    }
     cellHeight = bitmaps[0].height
     const cellWidth = bitmaps[0].width
     console.time("layer")
@@ -115,16 +123,25 @@ async function main(){
       }
     }
     const lettersFlat = flattenImage(image, padding, grid, cell)
-    for(let row = 0; row<grid.height; row++){
-      const globalOffset = row * grid.width * cell.length
-      const cellsRow = cells.slice(row*grid.width, (row+1)*grid.width)
-      const originalFlatRow = new ImageData(originalFlat.data.slice(globalOffset*4, (row+1)*grid.width*cell.length*4), cell.width)
-      const imageFlatRow = new ImageData(imageFlat.data.slice(globalOffset*4, (row+1)*grid.width*cell.length*4), cell.width)
-      const lettersFlatRow = new ImageData(lettersFlat.data.slice(globalOffset*4, (row+1)*grid.width*cell.length*4), cell.width)
-      const diffArrayFlatRow = diffArrayFlat.slice(globalOffset, (row+1)*grid.width*cell.length)
-      const result = await calc(originalFlatRow, imageFlatRow, lettersFlatRow, diffArrayFlatRow, cellsRow, globalOffset, bitmaps)
-      imageFlat.data.set(result.imageFlat.data, globalOffset*4)
-      diffArrayFlat.set(result.diffArrayFlat, globalOffset)
+    const chunks = split([...Array(grid.height)].map((_,i)=>i), threads)
+      .map(rows=>{
+          const first = rows[0]*grid.width
+          const length = rows.length*grid.width
+          return {
+            cells: cells.slice(first, first+length),
+            start: cells[first].offset, 
+            end: cells[first].offset + length*cell.length
+          }
+        }
+      )
+    for(const {cells, start, end} of chunks){
+      const originalFlatRow = new ImageData(originalFlat.data.slice(start*4, end*4), cell.width)
+      const imageFlatRow = new ImageData(imageFlat.data.slice(start*4, end*4), cell.width)
+      const lettersFlatRow = new ImageData(lettersFlat.data.slice(start*4, end*4), cell.width)
+      const diffArrayFlatRow = diffArrayFlat.slice(start, end)
+      const result = await workers[0].calc(originalFlatRow, imageFlatRow, lettersFlatRow, diffArrayFlatRow, cells, start, bitmaps)
+      imageFlat.data.set(result.imageFlat.data, start*4)
+      diffArrayFlat.set(result.diffArrayFlat, start)
       unflattenImageTo(image, imageFlat, padding, grid, cell)
       context.putImageData(image, 0, 0)
       if(ANIMATION){
@@ -150,7 +167,7 @@ async function main(){
 main()
 
 async function calc(originalFlat, imageFlat, lettersFlat2, diffArrayFlat, cells, globalOffset, bitmaps){
-  for(let i = 0; i< ALPHABET.length; i++){
+  for(let i = 0; i < bitmaps.length; i++){
     const lettersFlat = new ImageData(lettersFlat2.data.slice(0), lettersFlat2.width, lettersFlat2.height)
     for(let cell of cells){
       const {offset, alphabet} = cell
