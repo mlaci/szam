@@ -12,6 +12,7 @@ import {
 } from "./image.js"
 
 import {
+  createBitmapFormClone,
   drawBitmapTo,
   maskBitmapColorsFrom
 } from "./bitmap.js"
@@ -22,22 +23,22 @@ const BACKGROUND_COLOR = [255, 255, 255]
 
 export class WorkerObject {
   bitmaps
-  setBitmaps(bitmaps){
-    this.bitmaps = bitmaps
+  setBitmaps(bitmapClones){
+    this.bitmaps = bitmapClones.map(clone=>createBitmapFormClone(clone))
   }
-  async calc(originalFlat, imageFlat, lettersFlatOriginal, diffArrayFlat, cells, globalOffset, bitmaps){
-    for(let i = 0; i < bitmaps.length; i++){
+  async calc(originalFlat, imageFlat, lettersFlatOriginal, diffArrayFlat, cells, globalOffset){
+    for(let i = 0; i < this.bitmaps.length; i++){
       const lettersFlat = new ImageData(lettersFlatOriginal.data.slice(0), lettersFlatOriginal.width, lettersFlatOriginal.height)
       for(let cell of cells){
         const {offset, alphabet} = cell
-        const bitmap = bitmaps[alphabet[i]]
+        const bitmap = this.bitmaps[alphabet[i]]
         const colors = maskBitmapColorsFrom(originalFlat, offset - globalOffset, bitmap)
         cell.color = getColor(colors).map(val=>gam_sRGB(val/255)*255)
         drawBitmapTo(lettersFlat, offset - globalOffset, bitmap, cell.color)
       }
       await new Promise((resolve) => setTimeout(resolve, 0))
       for(let {alphabet, color, offset, best} of cells){
-        const bitmap = bitmaps[alphabet[i]]
+        const bitmap = this.bitmaps[alphabet[i]]
         const diffPenalty = getPenalty(originalFlat, lettersFlat, diffArrayFlat, offset - globalOffset, bitmap)
         if (diffPenalty < best.penalty) {
           best.penalty = diffPenalty

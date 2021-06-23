@@ -124,6 +124,45 @@ function measureAlphabet(alphabet, font){
   return {maxAscent, maxDescent, maxHeight, maxWidth}
 }
 
+class Bitmap {
+  width
+  height
+  dataView
+  constructor(bitmapImage){
+    this.width = bitmapImage.width
+    this.height = bitmapImage.height
+    const bitmap = []
+    for(let offset = 0; offset < bitmapImage.width*bitmapImage.height; offset++){
+      const alpha = getPixel(bitmapImage, offset)[3]
+      if(alpha != 0){
+        bitmap.push({offset, alpha})
+      }
+    } 
+    this.dataView = new DataView(new ArrayBuffer(bitmap.length * 5))
+    var i = 0
+    for(const {offset, alpha} of bitmap){
+      this.dataView.setUint32(i * 5, offset)
+      this.dataView.setUint8(i * 5 + 4, alpha)
+      i++
+    }
+  }
+  *[Symbol.iterator](){
+    for(let i = 0; i<this.dataView.byteLength / 5; i++){
+      const offset = this.dataView.getUint32(i * 5)
+      const alpha = this.dataView.getUint8(i * 5 + 4)
+      yield {offset, alpha}
+    }
+  }
+}
+
+export function createBitmapFormClone({width, height, dataView}){
+  const bitmap = new Bitmap(new ImageData(1, 1))
+  bitmap.width = width
+  bitmap.height = height
+  bitmap.dataView = dataView
+  return bitmap
+}
+
 const MASK_LIGHT = 0.75
 export async function getBitmaps(alphabet, height, fontWeight, fontFamily, alignBaseline, padding){
   alphabet = alphabet.map(text=>text.trim())
@@ -157,16 +196,7 @@ export async function getBitmaps(alphabet, height, fontWeight, fontFamily, align
     canvas.context.clearRect(0, 0, canvas.width, canvas.height)
     canvas.context.fillText(text, x, y)
     const bitmapImage = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
-    const bitmap = []
-    for(let offset = 0; offset < canvas.width*canvas.height; offset++){
-      const alpha = getPixel(bitmapImage, offset)[3]
-      if(alpha != 0){
-        bitmap.push({offset, alpha})
-      }
-    }
-    bitmap.width = bitmapImage.width
-    bitmap.height = bitmapImage.height
-    bitmaps.push(bitmap)
+    bitmaps.push(new Bitmap(bitmapImage))
   }
   return bitmaps
 }

@@ -34,7 +34,7 @@ const ANIMATION = true
 const BACKGROUND_COLOR = [255, 255, 255]
 const ALPHABET = [..."0123456789"]
 
-const threads = Math.max(1, navigator.hardwareConcurrency-1)
+const threads = navigator.hardwareConcurrency-1 || 1
 
 const workers = [...Array(threads)].map(()=>new WorkerProxy(new Worker("./worker.js", {type: "module"})))
 
@@ -63,9 +63,9 @@ async function main(){
     const originalColor = getPixel(originalLinear, offset)
     setBufferValue(diffArray, offset, colorDistance(originalColor, BACKGROUND_COLOR))
   }
-
   console.time("total")
   for (let cellHeight of logScale(canvas.height, SMALLEST_FONT)){
+    console.time("layer")
     console.log(cellHeight)
     const ratio = ease(Math.log2(canvas.height/cellHeight) / Math.log2(canvas.height/SMALLEST_FONT), 20)
     const fontWeight = Math.round(400 + 200*ratio)
@@ -81,12 +81,8 @@ async function main(){
       y: 0.02
     }
     const bitmaps = await getBitmaps(ALPHABET, cellHeight, fontWeight, fontFamily, true, fontPadding)
-    for(const worker of workers){
-      await worker.setBitmaps(bitmaps)
-    }
     cellHeight = bitmaps[0].height
     const cellWidth = bitmaps[0].width
-    console.time("layer")
     const cells = []
     const padding = {
       x: Math.floor((canvas.width % cellWidth) / 2),
@@ -107,6 +103,8 @@ async function main(){
     const originalFlat = flattenImage(originalLinear, padding, grid, cell)
     const imageFlat = flattenImage(image,  padding, grid, cell)
     const diffArrayFlat = new Float32Array(flatten(diffArray, diffArray.width, padding, grid, cell).buffer)
+    const lettersFlat = flattenImage(image, padding, grid, cell)
+    console.time("cells")
     for (let w = 0; w < grid.height; w++){
       for (let z = 0; z < grid.width; z++){
         const alphabet = [...randomize([...Array(bitmaps.length)].map((_,i)=>i))]
@@ -122,7 +120,7 @@ async function main(){
         cells.push(p)
       }
     }
-    const lettersFlat = flattenImage(image, padding, grid, cell)
+    console.timeEnd("cells")
     const chunks = split([...Array(grid.height)].map((_,i)=>i), threads)
       .map(rows=>{
           const first = rows[0]*grid.width
@@ -134,12 +132,21 @@ async function main(){
           }
         }
       )
+    const jobs = []
     for(const {cells, start, end} of chunks){
-      const originalFlatRow = new ImageData(originalFlat.data.slice(start*4, end*4), cell.width)
-      const imageFlatRow = new ImageData(imageFlat.data.slice(start*4, end*4), cell.width)
-      const lettersFlatRow = new ImageData(lettersFlat.data.slice(start*4, end*4), cell.width)
-      const diffArrayFlatRow = diffArrayFlat.slice(start, end)
-      const result = await workers[0].calc(originalFlatRow, imageFlatRow, lettersFlatRow, diffArrayFlatRow, cells, start, bitmaps)
+      jobs.push(async (worker)=>{
+        const originalFlatRow = new ImageData(originalFlat.data.slice(start*4, end*4), cell.width)
+        const imageFlatRow = new ImageData(imageFlat.data.slice(start*4, end*4), cell.width)
+        const lettersFlatRow = new ImageData(lettersFlat.data.slice(start*4, end*4), cell.width)
+        const diffArrayFlatRow = diffArrayFlat.slice(start, end)
+        const result = await worker.calc(originalFlatRow, imageFlatRow, lettersFlatRow, diffArrayFlatRow, cells, start)
+        return {result, start}
+      })
+    }
+    for(const worker of workers.slice(0, jobs.length)){
+      worker.setBitmaps(bitmaps)
+    }
+    for await (const {result, start} of doParallel(workers, jobs)){
       imageFlat.data.set(result.imageFlat.data, start*4)
       diffArrayFlat.set(result.diffArrayFlat, start)
       unflattenImageTo(image, imageFlat, padding, grid, cell)
@@ -257,4 +264,20 @@ function unflattenTo(array, flatArray, width, padding, grid, cell){
 
 function unflattenImageTo(image, flatImage, padding, grid, cell){
   unflattenTo(image.data, flatImage.data, image.width, padding, grid, cell, "unflatten")
+}
+
+async function* doParallel(workers, jobs){
+  var workerPool = workers.slice(0, jobs.length).map((worker, index)=>{return Promise.resolve({worker, index})})
+  for(const job of jobs){
+    const {result, worker, index} = await Promise.race(workerPool)
+    workerPool[index] = job(worker).then(result=>{return {result, worker, index}})
+    if(result != undefined){
+      yield result
+    }
+  }
+  while(workerPool.some(job=>job!=undefined)){
+    const {result, index} = await Promise.race(workerPool.filter(job=>job!=undefined))
+    workerPool[index] = undefined
+    yield result
+  }
 }
