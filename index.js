@@ -1,5 +1,5 @@
 import {
-  split,
+  evenParts,
   ease,
   createCanvasFrom,
   getPixel,
@@ -121,10 +121,8 @@ async function main(){
       }
     }
     console.timeEnd("cells")
-    const chunks = split([...Array(grid.height)].map((_,i)=>i), threads)
-      .map(rows=>{
-          const first = rows[0]*grid.width
-          const length = rows.length*grid.width
+    const chunks = evenParts(grid.length, threads)
+      .map(({first, length})=>{
           return {
             cells: cells.slice(first, first+length),
             start: cells[first].offset, 

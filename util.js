@@ -3,13 +3,15 @@ export function fit(width, height, widthMax, heightMax){
   return {width: width*ratio, height: height*ratio}
 }
 
-export function split(array, size = 1){
-  const length = Math.ceil(array.length / size)
+export function evenParts(length, parts){
   const result = []
-  var index = 0
-  while (index < array.length){
-    result.push(array.slice(index, index + length))
-    index = index + length
+  var first = 0
+  while(length>0){
+      const len = Math.ceil(length / parts)
+      result.push({first, length: len})
+      length -= len 
+      first += len
+      parts--
   }
   return result
 }
