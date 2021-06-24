@@ -26,30 +26,36 @@ export class WorkerObject {
   setBitmaps(bitmapClones){
     this.bitmaps = bitmapClones.map(clone=>createBitmapFormClone(clone))
   }
-  async calc(originalFlat, imageFlat, lettersFlatOriginal, diffArrayFlat, cells, globalOffset){
+  async calc(originalFlat, imageFlat, lettersFlatOriginal, diffArrayFlat, gridlength, cellLength){
+    const cells = []
+    for(let i = 0; i<gridlength; i++){
+      cells.push({offset: i*cellLength, best: {penalty: Infinity}})
+    }
     for(let i = 0; i < this.bitmaps.length; i++){
       const lettersFlat = new ImageData(lettersFlatOriginal.data.slice(0), lettersFlatOriginal.width, lettersFlatOriginal.height)
       for(let cell of cells){
-        const {offset, alphabet} = cell
-        const bitmap = this.bitmaps[alphabet[i]]
-        const colors = maskBitmapColorsFrom(originalFlat, offset - globalOffset, bitmap)
+        const {offset} = cell
+        const bitmap = this.bitmaps[i]
+        const colors = maskBitmapColorsFrom(originalFlat, offset, bitmap)
         cell.color = getColor(colors).map(val=>gam_sRGB(val/255)*255)
-        drawBitmapTo(lettersFlat, offset - globalOffset, bitmap, cell.color)
+        drawBitmapTo(lettersFlat, offset, bitmap, cell.color)
       }
       await new Promise((resolve) => setTimeout(resolve, 0))
-      for(let {alphabet, color, offset, best} of cells){
-        const bitmap = this.bitmaps[alphabet[i]]
-        const diffPenalty = getPenalty(originalFlat, lettersFlat, diffArrayFlat, offset - globalOffset, bitmap)
-        if (diffPenalty < best.penalty) {
-          best.penalty = diffPenalty
-          best.bitmap = bitmap
-          best.color = color
+      for(let cell of cells){
+        const {color, offset} = cell
+        cell.best ??= {penalty: Infinity}
+        const bitmap = this.bitmaps[i]
+        const diffPenalty = getPenalty(originalFlat, lettersFlat, diffArrayFlat, offset, bitmap)
+        if (diffPenalty < cell.best.penalty) {
+          cell.best.penalty = diffPenalty
+          cell.best.bitmap = bitmap
+          cell.best.color = color
         }
       }
     }
     for(let {best: {bitmap, color}, offset} of cells){
-      drawBitmapTo(imageFlat, offset - globalOffset, bitmap, color)
-      setDiff(imageFlat, originalFlat, diffArrayFlat, offset - globalOffset, bitmap)
+      drawBitmapTo(imageFlat, offset, bitmap, color)
+      setDiff(imageFlat, originalFlat, diffArrayFlat, offset, bitmap)
     }
     return {imageFlat, diffArrayFlat}
   }

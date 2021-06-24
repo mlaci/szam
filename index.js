@@ -104,40 +104,16 @@ async function main(){
     const imageFlat = flattenImage(image,  padding, grid, cell)
     const diffArrayFlat = new Float32Array(flatten(diffArray, diffArray.width, padding, grid, cell).buffer)
     const lettersFlat = flattenImage(image, padding, grid, cell)
-    console.time("cells")
-    for (let w = 0; w < grid.height; w++){
-      for (let z = 0; z < grid.width; z++){
-        const alphabet = [...randomize([...Array(bitmaps.length)].map((_,i)=>i))]
-        const p = {
-          best: {
-            penalty: Infinity,
-            color: [255, 255, 255],
-            bitmap: 0
-          }, 
-          offset: (z + w * grid.width) * cell.length,
-          alphabet
-        }
-        cells.push(p)
-      }
-    }
-    console.timeEnd("cells")
-    const chunks = evenParts(grid.length, threads)
-      .map(({first, length})=>{
-          return {
-            cells: cells.slice(first, first+length),
-            start: cells[first].offset, 
-            end: cells[first].offset + length*cell.length
-          }
-        }
-      )
     const jobs = []
-    for(const {cells, start, end} of chunks){
+    for(const {first, length} of evenParts(grid.length, threads)){
       jobs.push(async (worker)=>{
+        const start = first*cell.length
+        const end = (first + length)*cell.length
         const originalFlatRow = new ImageData(originalFlat.data.slice(start*4, end*4), cell.width)
         const imageFlatRow = new ImageData(imageFlat.data.slice(start*4, end*4), cell.width)
         const lettersFlatRow = new ImageData(lettersFlat.data.slice(start*4, end*4), cell.width)
         const diffArrayFlatRow = diffArrayFlat.slice(start, end)
-        const result = await worker.calc(originalFlatRow, imageFlatRow, lettersFlatRow, diffArrayFlatRow, cells, start)
+        const result = await worker.calc(originalFlatRow, imageFlatRow, lettersFlatRow, diffArrayFlatRow, length, cell.length)
         return {result, start}
       })
     }
