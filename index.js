@@ -88,12 +88,14 @@ async function main(){
       x: Math.floor((canvas.width % cellWidth) / 2),
       y: Math.floor((canvas.height % cellHeight) / 2)
     }
+    const width = Math.max(1, Math.floor(canvas.width / cellWidth))
+    const height = Math.max(Math.floor(canvas.height / cellHeight))
     const grid = {
       offsetZ: 0,
       offsetW: 0,
-      width: Math.floor(canvas.width / cellWidth),
-      height: Math.floor(canvas.height / cellHeight),
-      length: Math.floor(canvas.width / cellWidth) * Math.floor(canvas.height / cellHeight)
+      width,
+      height,
+      length: width * height
     }
     const cell = {
       width: cellWidth,
