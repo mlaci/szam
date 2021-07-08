@@ -101,3 +101,15 @@ export async function blobToImageData(blob, widthMax, heightMax){
   URL.revokeObjectURL(img.src)
   return canvas.context.getImageData(0, 0, canvas.width, canvas.height)
 }
+
+export function color2number(color){
+  return (color[0] << 24) | (color[1] << 16) | (color[2] << 8) | color[3]
+}
+export function number2color(colorNumber){
+  return [
+    (colorNumber & 0xFF_00_00_00) >>> 24, 
+    (colorNumber & 0x00_FF_00_00) >>> 16, 
+    (colorNumber & 0x00_00_FF_00) >>> 8,
+    (colorNumber & 0x00_00_00_FF) >>> 0
+  ]
+}

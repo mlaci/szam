@@ -1,170 +1,191 @@
-import { alphaBlendTo } from "./image.js"
-import { createCanvas, getPixel, setPixel } from "./util.js"
+import { alphaBlendTo, reduceColors } from "./image.js"
+import { createCanvas, getPixel, setPixel, color2number, number2color } from "./util.js"
+import { compress, decompress} from "./compression.js"
+import { FontProp, measureText, measureAlphabet } from "./font.js"
 
-class FontProp {
-  weight
-  size
-  family
-  constructor(weight, size, family){
-    this.weight = weight
-    this.size = size
-    this.family = family
-  }
-  toString(){
-    return `${this.weight} ${this.size}px ${this.family}`
-  }
+//interface
+export class Bitmap {
+  width
+  height
 }
 
-function nativeMeasureText(text, font){
-  const canvas = createCanvas()
-  canvas.context.font = font
-  const metric = canvas.context.measureText(text)
-  const height = metric.actualBoundingBoxAscent != undefined && metric.actualBoundingBoxAscent + metric.actualBoundingBoxDescent
-  return {width: metric.width, height, ascent: metric.actualBoundingBoxAscent}
-}
-
-function measureText(text, font){
-  const metric = nativeMeasureText(text, font)
-  const safetyPixels = 6
-  const canvas = createCanvas(
-    metric.width + safetyPixels,
-    (metric.height ?? fontSize * 1.1 ) + safetyPixels
-  )
-  canvas.context.font = font
-  canvas.context.textAlign = "center"
-  canvas.context.clearRect(0, 0, canvas.width, canvas.height)
-
-  const alignCenter = canvas.width * 0.5
-  const baseline = Math.ceil(metric.ascent ?? fontSize * 0.82)
-  canvas.context.fillText(text, alignCenter, baseline)
-
-  const image = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
-
-  const last = image.width*image.height-1
-  var top
-  var offset = 0
-  while(top == undefined){
-    const alpha = getPixel(image, offset)[3]
-    if(alpha != 0){
-      top = Math.floor(offset / image.width)
-    }
-    offset++
-    if(offset > last){
-      top = baseline
-    }
-  }
-  var bottom
-  var offset = last
-  while(bottom == undefined){
-    const alpha = getPixel(image, offset)[3]
-    if(alpha != 0){
-      bottom = Math.ceil(offset / image.width)
-    }
-    offset--
-    if(offset < 0){
-      bottom = baseline
-    }
-  }
-  var left
-  var offset = 0
-  while(left == undefined){
-    const alpha = getPixel(image, offset)[3]
-    if(alpha != 0){
-      left = offset % image.width - 1
-    }
-    offset = offset + image.width
-    if(offset > last){
-      offset = (offset + 1) % image.width
-      if(offset == 0){
-        left = 0
-      }
-    }
-  }
-  var right
-  var offset = last
-  while(right == undefined){
-    const alpha = getPixel(image, offset)[3]
-    if(alpha != 0){
-      right = offset % image.width + 1
-    }
-    offset = offset - image.width
-    if(offset < 0){
-      offset = offset + last
-      if(offset == last - image.width){
-        right = 0
-      }
-    }
-  }
-  const ascent = baseline - top
-  const descent = bottom - baseline
-  const height = ascent + descent
-  const width = right - left
-  return {ascent, descent, height, width}
-}
-function measureAlphabet(alphabet, font){
-  var maxAscent = 0
-  var maxDescent = 0
-  var maxHeight = 0
-  var maxWidth = 0
-  for(const text of alphabet){
-    const {ascent, descent, height, width} = measureText(text, font)
-    maxAscent = Math.max(maxAscent, ascent)
-    maxDescent = Math.max(maxDescent, descent)
-    maxHeight = Math.max(maxHeight, height)
-    maxWidth = Math.max(maxWidth, width)
-  }
-  if(maxHeight == 0){
-    maxHeight = fontSize
-    maxAscent = fontSize
-    maxDescent = 0
-  }
-  if(maxWidth == 0){
-    maxWidth = fontSize * 0.9 //!!
-  }
-  return {maxAscent, maxDescent, maxHeight, maxWidth}
-}
-
-class Bitmap {
+class AlphaBitmap extends Bitmap {
+  kind = "AlphaBitmap"
   width
   height
   dataView
-  constructor(bitmapImage){
-    this.width = bitmapImage.width
-    this.height = bitmapImage.height
-    const bitmap = []
-    for(let offset = 0; offset < bitmapImage.width*bitmapImage.height; offset++){
-      const alpha = getPixel(bitmapImage, offset)[3]
-      if(alpha != 0){
-        bitmap.push({offset, alpha})
-      }
-    } 
-    this.dataView = new DataView(new ArrayBuffer(bitmap.length * 5))
+  constructor(image){
+    super()
+    this.width = image.width
+    this.height = image.height
+    this.dataView = new DataView(new ArrayBuffer(image.data.byteLength / 4 * 5))
     var i = 0
-    for(const {offset, alpha} of bitmap){
-      this.dataView.setUint32(i * 5, offset)
-      this.dataView.setUint8(i * 5 + 4, alpha)
-      i++
+    for(let offset = 0; offset < image.width*image.height; offset++){
+      const color = getPixel(image, offset)
+      const alpha = color[3]
+      if(alpha != 0){
+        this.dataView.setUint32(i * 5 + 0, offset)
+        this.dataView.setUint8(i * 5 + 4, alpha)
+        i++
+      }
     }
+    this.dataView = new DataView(this.dataView.buffer.slice(0, i * 5))
   }
   *[Symbol.iterator](){
     for(let i = 0; i<this.dataView.byteLength / 5; i++){
-      const offset = this.dataView.getUint32(i * 5)
+      const offset = this.dataView.getUint32(i * 5 + 0)
       const alpha = this.dataView.getUint8(i * 5 + 4)
-      yield {offset, alpha}
+      if(alpha != 0){
+        yield {offset, color: [0, 0, 0, alpha]}
+      }
     }
   }
 }
 
-export function createBitmapFormClone({width, height, dataView}){
-  const bitmap = new Bitmap(new ImageData(1, 1))
-  bitmap.width = width
-  bitmap.height = height
-  bitmap.dataView = dataView
-  return bitmap
+class ColorBitmap extends Bitmap {
+  kind = "ColorBitmap"
+  width
+  height
+  dataView
+  constructor(image){
+    super()
+    this.width = image.width
+    this.height = image.height
+    this.dataView = new DataView(new ArrayBuffer(image.data.byteLength / 4 * 8))
+    var i = 0
+    for(let offset = 0; offset < image.width*image.height; offset++){
+      const color = getPixel(image, offset)
+      const alpha = color[3]
+      if(alpha != 0){
+        this.dataView.setUint32(i * 8, offset)
+        this.dataView.setUint8(i * 8 + 4, color[0])
+        this.dataView.setUint8(i * 8 + 5, color[1])
+        this.dataView.setUint8(i * 8 + 6, color[2])
+        this.dataView.setUint8(i * 8 + 7, color[3])
+        i++
+      }
+    }
+    this.dataView = new DataView(this.dataView.buffer.slice(0, i * 8))
+  }
+  *[Symbol.iterator](){
+    for(let i = 0; i<this.dataView.byteLength / 8; i++){
+      const offset = this.dataView.getUint32(i * 8)
+      const r = this.dataView.getUint8(i * 8 + 4)
+      const g = this.dataView.getUint8(i * 8 + 5)
+      const b = this.dataView.getUint8(i * 8 + 6)
+      const alpha = this.dataView.getUint8(i * 8 + 7)
+      if(alpha != 0){
+        yield {offset, color: [r, g, b, alpha]}
+      }
+    }
+  }
+}
+
+class PaletteBitmap extends Bitmap{
+  kind = "PaletteBitmap"
+  width
+  height
+  colors = []
+  lengths = []
+  dataView
+  constructor(image){
+    super()
+    this.width = image.width
+    this.height = image.height
+    const imageLength = image.width*image.height
+    this.dataView = new DataView(new ArrayBuffer(image.data.byteLength))
+    var prevColor
+    var length = 1
+    var byteLength = 0
+    for(let offset = 0; offset < imageLength; offset++){
+      const color = color2number(getPixel(image, offset))
+      if((prevColor != undefined && prevColor != color) || offset == imageLength-1){
+          var index = this.colors.findIndex((data)=>data.color==prevColor)
+          if(index == -1){
+            this.colors.push({color: prevColor, count: 1})
+            index = this.colors.length-1
+          }
+          else{
+            this.colors[index].count++
+          }
+          this.dataView.setUint16(byteLength + 0, index)
+          index = this.lengths.findIndex((data)=>data.length==length)
+          if(index == -1){
+            this.lengths.push({length, count: 1})
+            index = this.lengths.length-1
+          }
+          else{
+            this.lengths[index].count++
+          }
+          this.dataView.setUint16(byteLength + 2, index)
+          length = 1
+          byteLength += 4
+      }
+      else{
+        length++
+      }
+      prevColor = color
+    }
+    this.dataView = new DataView(this.dataView.buffer.slice(0, byteLength))
+  }
+  *[Symbol.iterator](){
+    var offset = 0
+    for(let i = 0; i < this.dataView.byteLength / 4; i++){
+      const colorIndex = this.dataView.getUint16(i * 4)
+      const color = number2color(this.colors[colorIndex].color)
+      const lengthIndex = this.dataView.getUint16(i * 4 + 2)
+      const length = this.lengths[lengthIndex].length
+      const alpha = color[3]
+      if(alpha != 0){
+        for(let y = 0; y < length; y++){
+          yield {offset, color}
+          offset++
+        }
+      }
+      else{
+        offset += length
+      }
+    }
+  }
+}
+
+class CompressedBitmap {
+  kind = "CompressedBitmap"
+  width
+  height
+  data
+  colorTree
+  lengthTree
+  constructor(bitmapImage){
+    this.width = bitmapImage.width
+    this.height = bitmapImage.height
+    ///const reducedImage = reduceColors(bitmapImage, 256)
+    const {data, colorTree, lengthTree} = compress(new PaletteBitmap(bitmapImage))
+    this.data = data
+    this.colorTree = colorTree
+    this.lengthTree = lengthTree
+  }
+  *[Symbol.iterator](){
+    for(const {offset, value} of decompress(this.data, this.colorTree, this.lengthTree)){
+      yield {offset, color: number2color(value)}
+    }
+  }
+}
+
+const bitmapKinds = {
+  "AlphaBitmap": AlphaBitmap,
+  "ColorBitmap": ColorBitmap,
+  "PaletteBitmap": PaletteBitmap,
+  "CompressedBitmap": CompressedBitmap
+}
+
+export function createBitmapFormClone(bitmapObject){
+  Object.setPrototypeOf(bitmapObject, bitmapKinds[bitmapObject.kind].prototype)
+  return bitmapObject
 }
 
 const MASK_LIGHT = 0.75
-export async function getBitmaps(alphabet, height, fontWeight, fontFamily, alignBaseline, padding){
+export async function getBitmaps(alphabet, height, fontWeight, fontFamily, alignBaseline, padding, emoji = false){
   alphabet = alphabet.map(text=>text.trim())
   const fontSize = height / (1 + padding.y)
   const font = new FontProp(fontWeight, fontSize, fontFamily)
@@ -196,21 +217,30 @@ export async function getBitmaps(alphabet, height, fontWeight, fontFamily, align
     canvas.context.clearRect(0, 0, canvas.width, canvas.height)
     canvas.context.fillText(text, x, y)
     const bitmapImage = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
-    bitmaps.push(new Bitmap(bitmapImage))
+    bitmaps.push(new AlphaBitmap(bitmapImage))
   }
   return bitmaps
 }
 
-export function drawBitmapTo(image, cellOffset, bitmap, color){
-  for(const {offset, alpha} of bitmap){
+//export function getBitmapsFromSVG(svgs, height, padding)
+
+export function drawBitmapTo(image, cellOffset, bitmap, bitmapColor){
+  for(var {offset, color} of bitmap){
     const pixelOffset = cellOffset + offset
+    const alpha = color[3]
     if(alpha != 0 && alpha != 255){
+      if(bitmapColor != undefined){
+        color = [...bitmapColor, alpha]
+      }
       const imageColor = getPixel(image, pixelOffset)
-      const newColor = alphaBlendTo([...color, alpha], imageColor)
+      const newColor = alphaBlendTo(color, imageColor)
       setPixel(image, pixelOffset, newColor)
     }
     else if(alpha == 255){
-      setPixel(image, pixelOffset, [...color, alpha])
+      if(bitmapColor != undefined){
+        color = [...bitmapColor, alpha]
+      }
+      setPixel(image, pixelOffset, color)
     }
   }
 }
