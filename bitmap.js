@@ -86,7 +86,7 @@ class PaletteBitmap extends Bitmap{
   width
   height
   colors = []
-  lengths = []
+  lengths = [{length: 1, count: 0}]
   dataView
   constructor(image){
     super()

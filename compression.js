@@ -72,44 +72,60 @@ function* readBitStream(data, colorTree, lengthTree){
 }
 
 function tree(values){
-  values = values.sort(({count: a},{count: b})=>b-a)
-  while(values.length > 1){
-    const last1 = values.pop()
-    const last2 = values.pop()
-    values.push({count: last1.count+last2.count, left: last1, right: last2})
-    values.sort(({count: a},{count: b})=>b-a)
+  if(values.length == 0){
+    return {}
   }
-  return values[0]
-}
-
-function codes({left, right, value, ...props}, prefix = []){
-  if(value != undefined){
-    return [{value, ...props, prefix}]
+  if(values.length == 1){
+    return {count: values[0].count, left: values[0]}
   }
   else{
-    return codes(left, [...prefix, 0]).concat(codes(right, [...prefix, 1]))
+    values = [...values].sort(({count: a},{count: b})=>b-a)
+    while(values.length > 1){
+      const last1 = values.pop()
+      const last2 = values.pop()
+      values.push({count: last1.count+last2.count, left: last1, right: last2})
+      values.sort(({count: a},{count: b})=>b-a)
+    }
+    return values[0]
+  }
+}
+
+function codes(node, prefix = []){
+  if(node != undefined){
+    const {left, right, value, ...props} = node
+    if(value != undefined){
+      return [{value, ...props, prefix}]
+    }
+    else{
+      return codes(left, [...prefix, 0]).concat(codes(right, [...prefix, 1]))
+    }
+  }
+  else{
+    return []
   }
 }
 
 export function compress(image){
   const colors = image.colors.map(({color, count}, index)=>({value: color, count, index}))
-  const lengths = image.lengths.map(({length, count}, index)=>({value: length, count, index}))
+  const lengths = image.lengths.filter(({length})=>length != 1).map(({length, count}, index)=>({value: length-1, count, index}))
   const repeatCount = lengths.reduce((sum, {count})=>sum+count, 0)
-  colors.push({value: "repeat", count: repeatCount, index: colors.length})
+  if(repeatCount > 0){
+    colors.push({value: "repeat", count: repeatCount, index: colors.length})
+  }
   const colorTree = tree(colors)
   const lengthTree = tree(lengths)
   const colorMap = codes(colorTree).sort(({index: a}, {index: b})=>a-b)
   const lengthMap = codes(lengthTree).sort(({index: a}, {index: b})=>a-b)
-  const repeatCode = colorMap[colorMap.length-1].prefix
+  const repeatCode = colorMap.find(({value})=>value == "repeat")?.prefix
   const bitStream = new BitStreamWriter(image.dataView.byteLength)
   for(let i = 0; i < image.dataView.byteLength / 4; i++){
     const colorIndex = image.dataView.getUint16(i * 4 + 0)
     const lengthIndex = image.dataView.getUint16(i * 4 + 2)
-    const length = lengthMap[lengthIndex].value
+    const length = lengthMap[lengthIndex-1]?.value
     bitStream.write(colorMap[colorIndex].prefix)
-    if(length > 1){
+    if(length > 0){
       bitStream.write(repeatCode)
-      bitStream.write(lengthMap[lengthIndex].prefix)
+      bitStream.write(lengthMap[lengthIndex-1].prefix)
     }
   }
   const data = bitStream.end()
@@ -125,7 +141,7 @@ export function* decompress(data, colorTree, lengthTree){
       if(!repeat){
         prev = value
       }
-      var number = repeat ? value-1 : 1
+      var number = repeat ? value : 1
       if(prev != 0){
         for(let i = 0; i < number; i++){
           yield {offset, value: prev}

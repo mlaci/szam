@@ -10,7 +10,9 @@ const fontPadding = {
 
 async function main(){
   const height = 1000
-  const bitmaps = await getBitmaps([..."😂😊😍😚😜🤔🙄😴🤢😵🤠😎🤓😭😱😡😈💀☠️💩🤡"], height, 600, "'Segoe UI Emoji', sans-serif", true, fontPadding, true)
+  console.time("bitmap")
+  const bitmaps = await getBitmaps([..."☠️😂😊😍😚😜🤔🙄😴🤢😵🤠😎🤓😭😱😡😈💀💩🤡"], height, 600, "'Segoe UI Emoji', sans-serif", true, fontPadding, true)
+  console.timeEnd("bitmap")
   for(const bitmap of bitmaps){
     context.clearRect(0, 0, canvas.width, canvas.height)
     canvas.height = height
@@ -20,6 +22,7 @@ async function main(){
     drawBitmapTo(image, 0, bitmap)
     console.timeEnd("draw")
     context.putImageData(image, 0, 0)
+    await new Promise((resolve) => setTimeout(resolve, 0))
   }
 }
 main()
