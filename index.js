@@ -3,10 +3,8 @@ import {
   ease,
   createCanvasFrom,
   getPixel,
-  getBufferValue,
   setBufferValue,
   logScale,
-  randomize,
   compose,
   blobToImageData
 } from "./util.js"
@@ -20,14 +18,10 @@ import {
 } from "./image.js"
 
 import {
-  getBitmaps,
-  drawBitmapTo,
-  maskBitmapColorsFrom
+  getBitmaps
 } from "./bitmap.js"
 
-import { getColor } from "./color.js"
-
-import { WorkerProxy } from "./proxy.js"
+import { CalcWorker } from "./proxy.js"
 
 const SMALLEST_FONT = 7
 const ANIMATION = true
@@ -36,7 +30,7 @@ const ALPHABET = [..."0123456789"]
 
 const threads = navigator.hardwareConcurrency-1 || 1
 
-const workers = [...Array(threads)].map(()=>new WorkerProxy(new Worker("./worker.js", {type: "module"})))
+const workers = [...Array(threads)].map(()=>new CalcWorker(new Worker("./worker.js", {type: "module"})))
 
 const blobRequest = fetch("https://upload.wikimedia.org/wikipedia/commons/1/1c/1998_Chevrolet_Corvette_C5_at_Hatfield_Heath_Festival_2017.jpg").then(response=>response.blob())
 
@@ -80,10 +74,11 @@ async function main(){
       },
       y: 0.02
     }
+    console.time("bitmap")
     const bitmaps = await getBitmaps(ALPHABET, cellHeight, fontWeight, fontFamily, true, fontPadding)
+    console.timeEnd("bitmap")
     cellHeight = bitmaps[0].height
     const cellWidth = bitmaps[0].width
-    const cells = []
     const padding = {
       x: Math.floor((canvas.width % cellWidth) / 2),
       y: Math.floor((canvas.height % cellHeight) / 2)
@@ -115,12 +110,13 @@ async function main(){
         const imageFlatRow = new ImageData(imageFlat.data.slice(start*4, end*4), cell.width)
         const lettersFlatRow = new ImageData(lettersFlat.data.slice(start*4, end*4), cell.width)
         const diffArrayFlatRow = diffArrayFlat.slice(start, end)
-        const result = await worker.calc(originalFlatRow, imageFlatRow, lettersFlatRow, diffArrayFlatRow, length, cell.length)
+        const result = await worker.calc(originalFlatRow, imageFlatRow, lettersFlatRow, diffArrayFlatRow, length, cell.length, bitmaps, newImageFlatRow=>{
+          imageFlat.data.set(newImageFlatRow.data, start*4)
+          unflattenImageTo(image, imageFlat, padding, grid, cell)
+          context.putImageData(image, 0, 0)
+        })
         return {result, start}
       })
-    }
-    for(const worker of workers.slice(0, jobs.length)){
-      worker.setBitmaps(bitmaps)
     }
     for await (const {result, start} of doParallel(workers, jobs)){
       imageFlat.data.set(result.imageFlat.data, start*4)
@@ -148,55 +144,6 @@ async function main(){
   }
 }
 main()
-
-async function calc(originalFlat, imageFlat, lettersFlat2, diffArrayFlat, cells, globalOffset, bitmaps){
-  for(let i = 0; i < bitmaps.length; i++){
-    const lettersFlat = new ImageData(lettersFlat2.data.slice(0), lettersFlat2.width, lettersFlat2.height)
-    for(let cell of cells){
-      const {offset, alphabet} = cell
-      const bitmap = bitmaps[alphabet[i]]
-      const colors = maskBitmapColorsFrom(originalFlat, offset - globalOffset, bitmap)
-      cell.color = getColor(colors).map(val=>gam_sRGB(val/255)*255)
-      drawBitmapTo(lettersFlat, offset - globalOffset, bitmap, cell.color)
-    }
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    for(let {alphabet, color, offset, best} of cells){
-      const bitmap = bitmaps[alphabet[i]]
-      const diffPenalty = getPenalty(originalFlat, lettersFlat, diffArrayFlat, offset - globalOffset, bitmap)
-      if (diffPenalty < best.penalty) {
-        best.penalty = diffPenalty
-        best.bitmap = bitmap
-        best.color = color
-      }
-    }
-  }
-  for(let {best: {bitmap, color}, offset} of cells){
-    drawBitmapTo(imageFlat, offset - globalOffset, bitmap, color)
-    setDiff(imageFlat, originalFlat, diffArrayFlat, offset - globalOffset, bitmap)
-  }
-  return {imageFlat, diffArrayFlat}
-}
-
-function getPenalty(original, image, diffArray, cellOffset, bitmap){
-  let penalty = 0
-  for(let offset = 0; offset < bitmap.width*bitmap.height; offset++){
-    const pixelOffset = cellOffset + offset
-    const originalColor = getPixel(original, pixelOffset)
-    const imageColor = blendTo(linearColor(getPixel(image, pixelOffset)), BACKGROUND_COLOR)
-    const prevDiff = getBufferValue(diffArray, pixelOffset)
-    penalty = penalty - prevDiff + colorDistance(originalColor, imageColor)
-  }
-  return penalty
-}
-
-function setDiff(image, original, diffArray, cellOffset, bitmap){
-  for(let {offset} of bitmap){
-    const pixelOffset = cellOffset + offset
-    const originalColor = getPixel(original, pixelOffset)
-    const color = blendTo(linearColor(getPixel(image, pixelOffset)), BACKGROUND_COLOR)
-    setBufferValue(diffArray, pixelOffset, colorDistance(originalColor, color))
-  }
-}
 
 function flattenCopy(array, flatArray, width, padding, grid, cell, mode){ 
   var offset = 0

@@ -240,7 +240,7 @@ const MASK_LIGHT = 0.75
 const MASK_COLOR = [255*MASK_LIGHT, 255*MASK_LIGHT, 255*MASK_LIGHT, 255]
 export async function getBitmaps(alphabet, height, fontWeight, fontFamily, alignBaseline, padding, emoji = false){
   const images = await getAlphabet(alphabet, height, fontWeight, fontFamily, alignBaseline, padding, MASK_COLOR)
-  return images.map(image=>new PaletteBitmap(image))
+  return images.map(image=>new AlphaBitmap(image))
 }
 
 //export function getBitmapsFromSVG(svgs, height, padding)
