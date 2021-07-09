@@ -41,7 +41,7 @@ async function main(){
   const {width: widthMax, height: heightMax} = canvas.getClientRects()[0]
 
   const blob = await blobRequest
-  const original = await blobToImageData(blob, widthMax, heightMax)
+  const original = await blobToImageData(blob, widthMax * devicePixelRatio, heightMax * devicePixelRatio)
   const originalCanvas = createCanvasFrom(original)
   const originalLinear = linearImage(original)
   
