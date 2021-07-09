@@ -1,4 +1,5 @@
 import { getBitmaps, drawBitmapTo } from "./bitmap.js"
+import { emojis } from "./emoji.js"
 
 const canvas = document.querySelector("canvas")
 const context = canvas.getContext("2d", {alpha: true})
@@ -9,9 +10,9 @@ const fontPadding = {
 }
 
 async function main(){
-  const height = 1000
+  const height = 100
   console.time("bitmap")
-  const bitmaps = await getBitmaps([..."☠️😂😊😍😚😜🤔🙄😴🤢😵🤠😎🤓😭😱😡😈💀💩🤡"], height, 600, "'Segoe UI Emoji', sans-serif", true, fontPadding, true)
+  const bitmaps = await getBitmaps(emojis, height, 600, "'Segoe UI Emoji', sans-serif", true, fontPadding, true)
   console.timeEnd("bitmap")
   for(const bitmap of bitmaps){
     context.clearRect(0, 0, canvas.width, canvas.height)

@@ -22,7 +22,7 @@ function nativeMeasureText(text, font){
   return {width: metric.width, height, ascent: metric.actualBoundingBoxAscent}
 }
 
-export function measureText(text, font){
+function measureText(text, font){
   const metric = nativeMeasureText(text, font)
   const safetyPixels = 6
   const canvas = createCanvas(
@@ -101,7 +101,7 @@ export function measureText(text, font){
   return {ascent, descent, height, width}
 }
 
-export function measureAlphabet(alphabet, font){
+function measureAlphabet(alphabet, font){
   var maxAscent = 0
   var maxDescent = 0
   var maxHeight = 0
@@ -122,4 +122,41 @@ export function measureAlphabet(alphabet, font){
     maxWidth = fontSize * 0.9 //!!
   }
   return {maxAscent, maxDescent, maxHeight, maxWidth}
+}
+
+export async function getAlphabet(alphabet, height, fontWeight, fontFamily, alignBaseline, padding, color){
+  alphabet = alphabet.map(text=>text.trim())
+  const fontSize = height / (1 + padding.y)
+  const font = new FontProp(fontWeight, fontSize, fontFamily)
+  await document.fonts.load(font, alphabet.join(""))
+  const metric = measureAlphabet(alphabet, font)
+  const fontHeight = alignBaseline ? (metric.maxAscent + metric.maxDescent) : metric.maxHeight
+  const scaledFont = new FontProp(fontWeight, fontSize * (fontSize / fontHeight), fontFamily)
+  const scaledMetric = measureAlphabet(alphabet, scaledFont)
+  const scaledFontHeight = alignBaseline ? (scaledMetric.maxAscent + scaledMetric.maxDescent) : scaledMetric.maxHeight
+  const actualHeight = scaledFontHeight * (1 + padding.y)
+  const canvas = createCanvas(
+    scaledMetric.maxWidth * (1 + padding.x(height)),
+    height > 30 && height < actualHeight ? height : actualHeight //!!
+  )
+  const images = []
+  for(const text of alphabet){
+    const x = canvas.width * 0.5
+    var y
+    if(alignBaseline){
+      y = scaledMetric.maxAscent + (canvas.height - scaledFontHeight) / 2
+    }
+    else{
+      const {ascent, height} = measureText(text, scaledFont)
+      y = ascent + (canvas.height - height)/ 2
+    }
+    canvas.context.fillStyle = `rgba(${color.toString()})`
+    canvas.context.textAlign = "center"
+    canvas.context.font = scaledFont
+    canvas.context.clearRect(0, 0, canvas.width, canvas.height)
+    canvas.context.fillText(text, x, y)
+    const image = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
+    images.push(image)
+  }
+  return images
 }

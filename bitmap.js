@@ -1,7 +1,7 @@
 import { alphaBlendTo, medianCut } from "./image.js"
-import { createCanvas, getPixel, setPixel, color2number, number2color } from "./util.js"
+import { getPixel, setPixel, color2number, number2color } from "./util.js"
 import { compress, decompress} from "./compression.js"
-import { FontProp, measureText, measureAlphabet } from "./font.js"
+import { getAlphabet } from "./font.js"
 
 //interface
 export class Bitmap {
@@ -237,42 +237,10 @@ export function createBitmapFormClone(bitmapObject){
 }
 
 const MASK_LIGHT = 0.75
+const MASK_COLOR = [255*MASK_LIGHT, 255*MASK_LIGHT, 255*MASK_LIGHT, 255]
 export async function getBitmaps(alphabet, height, fontWeight, fontFamily, alignBaseline, padding, emoji = false){
-  alphabet = alphabet.map(text=>text.trim())
-  const fontSize = height / (1 + padding.y)
-  const font = new FontProp(fontWeight, fontSize, fontFamily)
-  await document.fonts.load(font, alphabet.join(""))
-  const metric = measureAlphabet(alphabet, font)
-  const fontHeight = alignBaseline ? (metric.maxAscent + metric.maxDescent) : metric.maxHeight
-  const scaledFont = new FontProp(fontWeight, fontSize * (fontSize / fontHeight), fontFamily)
-  const scaledMetric = measureAlphabet(alphabet, scaledFont)
-  const scaledFontHeight = alignBaseline ? (scaledMetric.maxAscent + scaledMetric.maxDescent) : scaledMetric.maxHeight
-  const actualHeight = scaledFontHeight * (1 + padding.y)
-  const canvas = createCanvas(
-    scaledMetric.maxWidth * (1 + padding.x(height)),
-    height > 30 && height < actualHeight ? height : actualHeight //!!
-  )
-  const bitmaps = []
-  for(const text of alphabet){
-    const x = canvas.width * 0.5
-    var y
-    if(alignBaseline){
-      y = scaledMetric.maxAscent + (canvas.height - scaledFontHeight) / 2
-    }
-    else{
-      const {ascent, height} = measureText(text, scaledFont)
-      y = ascent + (canvas.height - height)/ 2
-    }
-    canvas.context.fillStyle = `rgb(${[255*MASK_LIGHT, 255*MASK_LIGHT, 255*MASK_LIGHT].toString()})`
-    canvas.context.textAlign = "center"
-    canvas.context.font = scaledFont
-    canvas.context.clearRect(0, 0, canvas.width, canvas.height)
-    canvas.context.fillText(text, x, y)
-    const bitmapImage = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
-    const bitmap = new AlphaBitmap(bitmapImage)
-    bitmaps.push(bitmap)
-  }
-  return bitmaps
+  const images = await getAlphabet(alphabet, height, fontWeight, fontFamily, alignBaseline, padding, MASK_COLOR)
+  return images.map(image=>new PaletteBitmap(image))
 }
 
 //export function getBitmapsFromSVG(svgs, height, padding)
