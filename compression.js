@@ -106,8 +106,8 @@ function codes(node, prefix = []){
 }
 
 export function compress(image){
-  const colors = image.colors.map(({color, count}, index)=>({value: color, count, index}))
-  const lengths = image.lengths.filter(({length})=>length != 1).map(({length, count}, index)=>({value: length-1, count, index}))
+  const colors = [...image.colors]
+  const lengths = image.lengths.filter(({value})=>value != 1).map(({value, count}, index)=>({value: value-1, count, index}))
   const repeatCount = lengths.reduce((sum, {count})=>sum+count, 0)
   if(repeatCount > 0){
     colors.push({value: "repeat", count: repeatCount, index: colors.length})

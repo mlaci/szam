@@ -1,4 +1,3 @@
-import { getPixel, setPixel } from "./util.js" 
 //https://www.w3.org/TR/css-color-4/#color-conversion-code
 export function gam_sRGB(val){
   if (val > 0.0031308){
@@ -76,7 +75,11 @@ export function colorDistance(color1, color2){
   }*/
 }
 
-function medianCut(values, n){
+export function medianCut(values, n){
+  if(values.length == 0){
+    return []
+  }
+  values = [...values]
   const dimensions = [...Array(values[0].value.length)].map((_,i)=>i)
   function getRanges(values){
     const ranges = dimensions.map(()=>({min: Infinity, max: -Infinity}))
@@ -105,15 +108,15 @@ function medianCut(values, n){
       }
     }
     widestBucket.values.sort(({value: a}, {value: b})=>b[widestDim]-a[widestDim])
-    const length = widestBucket.values.reduce((sum, {number})=>sum+number, 0)
+    const length = widestBucket.values.reduce((sum, {count})=>sum+count, 0)
     var sum = 0
     var median = 0
     while(sum < length/2){
-      sum += widestBucket.values[median].number
+      sum += widestBucket.values[median].count
       median++
     }
     if(sum > length/2){
-      const sum2 = sum - widestBucket.values[median-1].number
+      const sum2 = sum - widestBucket.values[median-1].count
       if(Math.abs(sum2 - length/2) < Math.abs(sum - length/2)){
         median -= 1
       }
@@ -123,30 +126,5 @@ function medianCut(values, n){
     widestBucket.ranges = getRanges(widestBucket.values)
     buckets.push(lower)
   }
-  return buckets.map(({values})=>values.map(({value})=>value))
-}
-
-export function reduceColors(image, n){
-  image = new ImageData(image.data.slice(0), image.width, image.height)
-  const colors = new Map()
-  for(let i = 0; i < image.width*image.height; i++){
-    const color = getPixel(image, i)
-    const key = color.toString()
-    colors.set(key, (colors.get(key) || 0) + 1)
-  }
-  const values = [...colors.entries()].map(([key, number])=>({value: key.split(",").map(Number), number}))
-  /*console.time("median cut")
-  medianCut(values, n)
-  console.timeEnd("median cut")*/
-  const colorMap = new Map(medianCut(values, n).flatMap(colors=>{
-    const avg = colors
-      .reduce((sum, color)=>sum.map((value, i)=>value+color[i], [0, 0, 0, 0]))
-      .map(value=>Math.round(value/colors.length))
-    return colors.map(color=>[color.toString(), avg])
-  }))
-  for(let i = 0; i < image.width*image.height; i++){
-    const color = getPixel(image, i)
-    setPixel(image, i, colorMap.get(color.toString()))
-  }
-  return image
+  return buckets.map(({values})=>values)
 }
