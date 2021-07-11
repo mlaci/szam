@@ -10,10 +10,7 @@ import {
 } from "./util.js"
 
 import {
-  gam_sRGB,
-  linearColor,
-  linearImage,
-  blendTo,
+  linearizeImage,
   colorDistance
 } from "./image.js"
 
@@ -43,7 +40,7 @@ async function main(){
   const blob = await blobRequest
   const original = await blobToImageData(blob, widthMax * devicePixelRatio, heightMax * devicePixelRatio)
   const originalCanvas = createCanvasFrom(original)
-  const originalLinear = linearImage(original)
+  const originalLinear = linearizeImage(original)
   
   canvas.width = original.width
   canvas.height = original.height

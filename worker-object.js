@@ -6,7 +6,7 @@ import {
 
 import {
   gam_sRGB,
-  linearColor,
+  linearizeColor,
   blendTo,
   colorDistance
 } from "./image.js"
@@ -65,7 +65,7 @@ function getPenalty(original, image, diffArray, cellOffset, bitmap){
   for(let offset = 0; offset < bitmap.width*bitmap.height; offset++){
     const pixelOffset = cellOffset + offset
     const originalColor = getPixel(original, pixelOffset)
-    const imageColor = blendTo(linearColor(getPixel(image, pixelOffset)), BACKGROUND_COLOR)
+    const imageColor = blendTo(linearizeColor(getPixel(image, pixelOffset)), BACKGROUND_COLOR)
     const prevDiff = getBufferValue(diffArray, pixelOffset)
     penalty = penalty - prevDiff + colorDistance(originalColor, imageColor)
   }
@@ -76,7 +76,7 @@ function setDiff(image, original, diffArray, cellOffset, bitmap){
   for(let {offset} of bitmap){
     const pixelOffset = cellOffset + offset
     const originalColor = getPixel(original, pixelOffset)
-    const color = blendTo(linearColor(getPixel(image, pixelOffset)), BACKGROUND_COLOR)
+    const color = blendTo(linearizeColor(getPixel(image, pixelOffset)), BACKGROUND_COLOR)
     setBufferValue(diffArray, pixelOffset, colorDistance(originalColor, color))
   }
 }
