@@ -1,15 +1,15 @@
 const COLOR_VALUE_MAX = 255
-type RGB = readonly [number, number, number]
-type RGBA = readonly [number, number, number, number]
+export type RGB = readonly [red: number, green: number, blue: number]
+export type RGBA = readonly [red: number, green: number, blue: number, alpha: number]
 export type Color = RGB | RGBA | string
 
 /**
  * {@link https://www.w3.org/TR/css-color-4/#color-conversion-code}
  */
 /**
- * Convert a gamma corrected sRGB value to linear light form
- * @param val - linear-light value in range [0 - 1]
- * @returns gamma corrected value in range [0 - 1]
+ * Converts a gamma corrected sRGB value to linear light form.
+ * @param val - Linear-light value in range [0 - 1].
+ * @returns A gamma corrected value in range [0 - 1].
  */
 export function gam_sRGB(val: number){
   if (val > 0.0031308){
@@ -19,9 +19,9 @@ export function gam_sRGB(val: number){
   return 12.92 * val
 }
 /**
- * Convert a linear-light sRGB value to gamma corrected form
- * @param val - gamma corrected value in range [0 - 1]
- * @returns linear-light value in range [0 - 1]
+ * Converts a linear-light sRGB value to gamma corrected form.
+ * @param val - Gamma corrected value in range [0 - 1].
+ * @returns A linear-light value in range [0 - 1].
  */
 export function lin_sRGB(val: number){
   if (val < 0.04045){
@@ -37,9 +37,9 @@ const gam_sRGBLookup = [...Array(COLOR_VALUE_MAX + 1)
   ].map((_,index)=>gam_sRGB(index / COLOR_VALUE_MAX) * COLOR_VALUE_MAX)
 
 /**
- * Convert a gamma corrected sRGB color to linear-light sRGB color
- * @param color - sRGB color in gamma corrected form
- * @returns sRGB color in linear-light form
+ * Converts a gamma corrected sRGB color to linear-light sRGB color.
+ * @param color - sRGB color in gamma corrected form.
+ * @returns sRGB color in linear-light form.
  */
 export function linearizeColor(color: RGBA): RGBA {
   return [
@@ -47,13 +47,13 @@ export function linearizeColor(color: RGBA): RGBA {
     lin_sRGBLookup[color[1]],
     lin_sRGBLookup[color[2]],
     color[3]
-  ]
+  ] as const
 }
 
 /**
- * Convert a gamma corrected sRGB image to linear-light sRGB image
- * @param image - gamma corrected sRGB image
- * @returns linear-light sRGB image
+ * Converts a gamma corrected sRGB image to linear-light sRGB image.
+ * @param image - Gamma corrected sRGB image.
+ * @returns Linear-light sRGB image.
  */
 export function linearizeImage(image: ImageData){
   const buffer = new Uint8ClampedArray(image.data.length)
@@ -67,10 +67,10 @@ export function linearizeImage(image: ImageData){
 }
 
 /**
- * Blend a color to an other background color
- * @param color - sRGB color in linear-light form
- * @param background - sRGB color in linear-light form
- * @returns sRGB color in linear-light form
+ * Blends a color to an other background color.
+ * @param color - sRGB color in linear-light form.
+ * @param background - sRGB color in linear-light form.
+ * @returns sRGB color in linear-light form.
  */
 export function blendTo(color: RGB | RGBA, background: RGB): RGBA {
   const alpha = color[3] / 255
@@ -79,17 +79,17 @@ export function blendTo(color: RGB | RGBA, background: RGB): RGBA {
     color[1] * alpha + background[1] * (1 - alpha),
     color[2] * alpha + background[2] * (1 - alpha),
     255
-  ]
+  ] as const
 }
 
 /**
  * {@link https://en.wikipedia.org/wiki/Alpha_compositing}
  */
 /**
- * Blend a color to an other background color
- * @param color - sRGB color in linear-light form
- * @param background - sRGB color in linear-light form
- * @returns sRGB color in linear-light form
+ * Alpha blends a color to an other background color.
+ * @param color - sRGB color in linear-light form.
+ * @param background - sRGB color in linear-light form.
+ * @returns sRGB color in linear-light form.
  */
 export function alphaBlendTo(color: RGBA, background: RGBA): RGBA {
   const alpha = color[3]
@@ -102,18 +102,18 @@ export function alphaBlendTo(color: RGBA, background: RGBA): RGBA {
     (color[1]*ratio + background[1]*bgRatio)/newAlpha,
     (color[2]*ratio + background[2]*bgRatio)/newAlpha,
     newAlpha*255
-  ]
+  ] as const
 }
 
 /**
  * {@link https://en.wikipedia.org/wiki/Color_difference}
  */
 /**
- * Calculate the distence between two linear-light sRGB color 
- * by approximating a perceptually-uniform color space 
- * @param color1 - sRGB color in linear-light form
- * @param color2 - sRGB color in linear-light form
- * @returns the distance between the two color
+ * Calculates the distence between two linear-light sRGB color 
+ * by approximating a perceptually-uniform color space.
+ * @param color1 - sRGB color in linear-light form.
+ * @param color2 - sRGB color in linear-light form.
+ * @returns The distance between the two color.
  */
 export function colorDistance(color1: RGB | RGBA, color2: RGB | RGBA){
   const dr = color1[0] - color2[0]
@@ -130,13 +130,13 @@ export function colorDistance(color1: RGB | RGBA, color2: RGB | RGBA){
 type Vector<T, Dim> = readonly T[] & {readonly length: Dim}
 type VectorObject<Dim extends number> = {value: Vector<number, Dim>, count: number}
 /**
- * Group objects to `n` arrays
+ * Groups objects to `n` arrays
  * by minimizing the `object.value` vectors distance between each dimension in a group
  * (see median-cut algorithm).
- * The objects weighted by `object.count` when calculating the median.
- * @param objects - array of objects with `object.value` vectors (same dimension) and `object.count` weights
- * @param n - group size
- * @returns array of `n` groups of objects
+ * The objects are weighted by `object.count` when calculating the median.
+ * @param objects - Array of objects with `object.value` vectors (same dimension) and `object.count` weights.
+ * @param n - The group size.
+ * @returns Array of `n` groups of objects.
  */
 export function medianCut<Dim extends number>(objects: VectorObject<Dim>[], n: number){
   if(objects.length == 0){

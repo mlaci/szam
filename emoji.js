@@ -1,13 +1,13 @@
-import { randomize } from "./util.js"
+import { shuffle } from "./util.js"
 
 function randomEmoji(array, length = 1){
-  return [...randomize(array)].slice(0, length)
+  return [...shuffle(array)].slice(0, length)
 }
 function* addRandomSkinTone(chars){
   var skinTones = []
   for(const char of chars){
     if(skinTones.length == 0){
-      skinTones = [...randomize(["🏻","🏼","🏽","🏾","🏿"])]
+      skinTones = [...shuffle(["🏻","🏼","🏽","🏾","🏿"])]
     }
     const skinTone = skinTones.splice(0,1)
     yield char + skinTone

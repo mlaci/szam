@@ -1,10 +1,10 @@
 import {
-  evenParts,
+  sliceEvenly,
   ease,
   createCanvasFrom,
   getPixel,
   setBufferValue,
-  logScale,
+  log2Sequence,
   compose,
   blobToImageData
 } from "./util.js"
@@ -35,10 +35,12 @@ const canvas = document.querySelector("canvas")
 const context = canvas.getContext("2d", {alpha: true})
 
 async function main(){
-  const {width: widthMax, height: heightMax} = canvas.getClientRects()[0]
+  const container = canvas.getClientRects()[0]
+  container.width = container.width * devicePixelRatio
+  container.height = container.height * devicePixelRatio
 
   const blob = await blobRequest
-  const original = await blobToImageData(blob, widthMax * devicePixelRatio, heightMax * devicePixelRatio)
+  const original = await blobToImageData(blob, container)
   const originalCanvas = createCanvasFrom(original)
   const originalLinear = linearizeImage(original)
   
@@ -55,7 +57,7 @@ async function main(){
     setBufferValue(diffArray, offset, colorDistance(originalColor, BACKGROUND_COLOR))
   }
   console.time("total")
-  for (let cellHeight of logScale(canvas.height, SMALLEST_FONT)){
+  for (let cellHeight of log2Sequence(canvas.height, SMALLEST_FONT)){
     console.time("layer")
     console.log(cellHeight)
     const ratio = ease(Math.log2(canvas.height/cellHeight) / Math.log2(canvas.height/SMALLEST_FONT), 20)
@@ -99,10 +101,10 @@ async function main(){
     const diffArrayFlat = new Float32Array(flatten(diffArray, diffArray.width, padding, grid, cell).buffer)
     const lettersFlat = flattenImage(image, padding, grid, cell)
     const jobs = []
-    for(const {first, length} of evenParts(grid.length, threads)){
+    for(let {start, length} of sliceEvenly({start: 0, length: grid.length}, threads)){
       jobs.push(async (worker)=>{
-        const start = first*cell.length
-        const end = (first + length)*cell.length
+        start = start * cell.length
+        const end = start + length * cell.length
         const originalFlatRow = new ImageData(originalFlat.data.slice(start*4, end*4), cell.width)
         const imageFlatRow = new ImageData(imageFlat.data.slice(start*4, end*4), cell.width)
         const lettersFlatRow = new ImageData(lettersFlat.data.slice(start*4, end*4), cell.width)

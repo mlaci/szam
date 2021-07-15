@@ -14,7 +14,7 @@ import {
 import {
   createBitmapFormClone,
   drawBitmapTo,
-  maskBitmapColorsFrom
+  maskColorsFrom
 } from "./bitmap.js"
 
 import { getColor } from "./color.js"
@@ -33,7 +33,7 @@ export class WorkerObject {
       for(let cell of cells){
         const {offset} = cell
         const bitmap = bitmaps[i]
-        const colors = maskBitmapColorsFrom(originalFlat, offset, bitmap)
+        const colors = maskColorsFrom(originalFlat, offset, bitmap)
         cell.color = getColor(colors).map(val=>gam_sRGB(val/255)*255)
         drawBitmapTo(lettersFlat, offset, bitmap, cell.color)
       }

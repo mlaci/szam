@@ -2,9 +2,13 @@
   "compilerOptions": {
     "target": "ES2018",
     "lib": ["ESNext", "DOM"],
+    "module": "ES6"
   },
   "files": [
     "types.ts",
-    "image.ts"
+    "image.ts",
+    "color.ts",
+    "bitmap.ts",
+    "util.ts"
   ]
 }
