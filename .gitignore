@@ -1,1 +1,8 @@
 node_modules
+*.js
+!index.js
+!worker.js
+!proxy.js
+!calibrate.js
+!emoji-download.js
+!emoji.js
