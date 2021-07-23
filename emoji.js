@@ -1,5 +1,7 @@
 import { shuffle } from "./util.js"
 
+//emoji font "'Segoe UI Emoji', sans-serif"
+
 function randomEmoji(array, length = 1){
   return [...shuffle(array)].slice(0, length)
 }
