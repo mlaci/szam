@@ -1,5 +1,3 @@
-import {WorkerObject} from "./worker-object.js"
-
 function postMessage(target, name, message){
   const id = Math.floor(Math.random()*Number.MAX_SAFE_INTEGER).toString(16)
   return new Promise(resolve=>{
