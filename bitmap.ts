@@ -1,13 +1,16 @@
 import type { RGB, RGBA } from "./image.js"
+import type { Tree } from "./compression.js"
 import { alphaBlendTo, medianCut } from "./image.js"
 import { getPixel, setPixel, colorToNumber, numberToColor } from "./util.js"
-import { compress, decompress} from "./compression.js"
-import { getAlphabet } from "./font.js"
+import { compress, readBitStream, repeatSymbol } from "./compression.js"
+import { getTextImages } from "./text.js"
+import type { TextSources } from "./types.js"
 
 type BitmapKind = keyof typeof bitmapKinds
 
 /** Class represents a generic bitmap. */
 abstract class Bitmap {
+  /** Type of the subclass */
   readonly kind: BitmapKind
   width: number
   height: number
@@ -130,11 +133,13 @@ function writeTo(values: {value: number, count: number}[], value: number, dataVi
 }
 
 /**
- * Class represents a bitmap with a palette 
+ * Class represents a bitmap ... 
  */
-class PaletteBitmap extends Bitmap{
+export class PaletteBitmap extends Bitmap{
   static readonly kind = "PaletteBitmap"
+  /**  */
   colors: {value: RGBA, count: number, index: number}[]
+  /**  */
   lengths: {value: number, count: number}[]
   data: DataView
   /**
@@ -147,19 +152,17 @@ class PaletteBitmap extends Bitmap{
     const colors = [{value: colorToNumber([0, 0, 0, 0]), count: 0}]
     const lengths = [{value: 1, count: 0}]
     var prevColor: number
-    var length = 1
+    var length = 0
     var byteLength = 0
     for(let offset = 0; offset < this.length; offset++){
       const color = colorToNumber(getPixel(image, offset))
+      length++
       if(prevColor != undefined && prevColor != color){
         writeTo(colors, prevColor, this.data, byteLength)
         byteLength += 2
         writeTo(lengths, length, this.data, byteLength)
         byteLength += 2
-        length = 1
-      }
-      else{
-        length++
+        length = 0
       }
       prevColor = color
     }
@@ -167,8 +170,9 @@ class PaletteBitmap extends Bitmap{
     byteLength += 2
     writeTo(lengths, length, this.data, byteLength)
     byteLength += 2
-    this.colors = colors.map(({value, count}, index)=>({value: numberToColor(value), count, index}))
     this.data = new DataView(this.data.buffer.slice(0, byteLength))
+    this.colors = colors.map(({value, count}, index)=>({value: numberToColor(value), count, index}))
+    this.lengths = lengths
   }
   *[Symbol.iterator](){
     var offset = 0
@@ -215,7 +219,7 @@ class PaletteBitmap extends Bitmap{
     const data = new DataView(new ArrayBuffer(this.data.byteLength))
     const newColors = []
     const newLengths = [{value: 1, count: 0}]
-    var prevColor
+    var prevColor: number
     var lengthSum = 0
     var byteLength = 0
     const dataLength = this.data.byteLength / 4
@@ -238,7 +242,7 @@ class PaletteBitmap extends Bitmap{
     }
     writeTo(newColors, prevColor, data, byteLength)
     byteLength += 2
-    writeTo(newLengths, length, data, byteLength)
+    writeTo(newLengths, lengthSum, data, byteLength)
     byteLength += 2
     this.data = new DataView(data.buffer.slice(0, byteLength))
     this.colors = newColors.map(({value, count}, index)=>({value: numberToColor(value), count, index}))
@@ -247,11 +251,12 @@ class PaletteBitmap extends Bitmap{
 }
 
 /** Class represents a PaletteBitmap compressed with huffman coding. */
-class CompressedBitmap extends Bitmap {
+export class CompressedBitmap extends Bitmap {
   static readonly kind = "CompressedBitmap"
-  data: Uint8Array //!!
-  colorTree: any //!!
-  lengthTree: any //!!
+  data: Uint8Array
+  lastByteLength: number
+  literalTree: Tree<RGBA>
+  lengthTree: Tree<number>
   /**
    * Creates a CompressedBitmap from an image.
    * @param image - An image from the bitmap created.
@@ -260,19 +265,42 @@ class CompressedBitmap extends Bitmap {
     super(image, CompressedBitmap.kind)
     const bitmap = new PaletteBitmap(image)
     bitmap.reduceColors(16) //!!!
-    const {data, colorTree, lengthTree} = compress(bitmap)
+    const lengths = bitmap.lengths.map(({value, count}, index)=>({value, count, index}))
+    const {data, lastByteLength, literalTree, lengthTree} = compress({data: bitmap.data, literals: bitmap.colors, lengths})
     this.data = data
-    this.colorTree = colorTree
+    this.lastByteLength = lastByteLength
+    this.literalTree = literalTree
     this.lengthTree = lengthTree
   }
   *[Symbol.iterator](){
-    for(const {offset, value} of decompress(this.data, this.colorTree, this.lengthTree)){
-      yield {offset, color: value}
+    var prev: RGBA
+    var repeat = false
+    var offset = 0
+    for(const value of readBitStream(this.data, this.lastByteLength, this.literalTree, this.lengthTree)){
+      if(value != repeatSymbol){
+        if(!repeat){
+          prev = value as RGBA
+        }
+        const number = repeat ? value as number : 1
+        if(prev[3] != 0){
+          for(let i = 0; i < number; i++){
+            yield {offset, color: prev} 
+            offset++
+          }
+        }
+        else{
+          offset += number
+        }
+        repeat = false
+      }
+      else{
+        repeat = true
+      }
     }
   }
 }
 
-/** Object for maping bitmap names (kinds) to bitmap class. */
+/** Object for mapping bitmap names (kinds) to bitmap class. */
 const bitmapKinds: {
   [AlphaBitmap.kind]: typeof AlphaBitmap
   [ColorBitmap.kind]: typeof ColorBitmap
@@ -287,7 +315,7 @@ const bitmapKinds: {
 }
 
 /**
- * Create a Bitmap subclass instance form a structurally cloned bitmap.
+ * Creates a Bitmap subclass instance form a structurally cloned bitmap.
  * @param bitmapObject - A Structurally cloned bitmap.
  * @returns Bitmap subclass instance.
  */
@@ -297,17 +325,21 @@ export function createBitmapFormClone(bitmapObject: {kind: BitmapKind}): Bitmap 
 }
 
 const MASK_LIGHT = 0.75
-const MASK_COLOR = [255*MASK_LIGHT, 255*MASK_LIGHT, 255*MASK_LIGHT, 255]
+const MASK_COLOR = `rgb(${255*MASK_LIGHT}, ${255*MASK_LIGHT}, ${255*MASK_LIGHT})`
 export async function getBitmaps(
-  alphabet: string[],
+  /*alphabet: string[],
   height: number,
   fontWeight: number,
   fontFamily: string[],
   alignBaseline: boolean,
-  padding: any
+  padding: any*/
+  alphabet: TextSources,
+  height: number,
+  fontWeight: number
   ){
-  const images = await getAlphabet(alphabet, height, fontWeight, fontFamily, alignBaseline, padding, MASK_COLOR)
-  return images.map(image=>new AlphaBitmap(image))
+  //const images = await getAlphabet(alphabet, height, fontWeight, fontFamily, alignBaseline, padding, MASK_COLOR)
+  const images = await getTextImages(alphabet, height, fontWeight, MASK_COLOR)
+  return images.map(image=>new CompressedBitmap(image))
 }
 
 //export function getBitmapsFromSVG(svgs, height, padding)
