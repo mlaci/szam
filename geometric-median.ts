@@ -1,4 +1,3 @@
-import type { RGB } from "./image.js"
 import { colorDistance } from "./image.js"
 const MIN_VALUE = 0.0001
 type Vec3 = readonly [number, number, number]
@@ -66,18 +65,18 @@ function subtract(a: Vec3, b: Vec3): Vec3{
 }
 
 /**
- * Calculates a color which has the minimal sum of distances from the `colors` with the defined `accuracy`
+ * Calculates a vector which has the minimal sum of distances from the `vectors` with the defined `accuracy`
  * (approximation of the geometric median with weiszfeld algorithm).
- * @param colors - The colors to be processed.
+ * @param vectors - The vectors to be processed.
  * @param accuracy - The accuracy to the real median.
- * @returns The minimal distance color.
+ * @returns The minimal distance vector.
  */
-export function getColor(colors: RGB[], accuracy = 0.5){
+export function getMedian(vectors: Vec3[], accuracy = 0.5){
   var prev: Vec3 = [Infinity, Infinity, Infinity] as const
-  var median = centroid(colors)
+  var median = centroid(vectors)
   while(subtract(prev, median).some(value=>Math.abs(value) > accuracy)){
     prev = median
-    median = weiszfeld(colors, prev)
+    median = weiszfeld(vectors, prev)
   }
   return median
 }

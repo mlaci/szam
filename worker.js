@@ -17,7 +17,7 @@ import {
   maskColorsFrom
 } from "./bitmap.js"
 
-import { getColor } from "./color.js"
+import { getMedian } from "./geometric-median.js"
 
 function getPenalty(original, image, diffArray, cellOffset, bitmap){
   let penalty = 0
@@ -54,7 +54,7 @@ async function* calc({originalFlat, imageFlat, lettersFlatOriginal, diffArrayFla
       const {offset} = cell
       const bitmap = bitmaps[i]
       const colors = maskColorsFrom(originalFlat, offset, bitmap)
-      cell.color = getColor(colors).map(val=>gam_sRGB(val/255)*255)
+      cell.color = getMedian(colors).map(val=>gam_sRGB(val/255)*255)
       drawBitmapTo(lettersFlat, offset, bitmap, cell.color)
     }
 

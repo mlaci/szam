@@ -7,7 +7,7 @@
   "files": [
     "types.ts",
     "image.ts",
-    "color.ts",
+    "geometric-median.ts",
     "bitmap.ts",
     "huffman.ts",
     "util.ts",
