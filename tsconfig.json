@@ -9,6 +9,8 @@
     "image.ts",
     "color.ts",
     "bitmap.ts",
-    "util.ts"
+    "huffman.ts",
+    "util.ts",
+    "text.ts"
   ]
 }

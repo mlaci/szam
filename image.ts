@@ -1,7 +1,6 @@
 const COLOR_VALUE_MAX = 255
 export type RGB = readonly [red: number, green: number, blue: number]
 export type RGBA = readonly [red: number, green: number, blue: number, alpha: number]
-export type Color = RGB | RGBA | string
 
 /**
  * {@link https://www.w3.org/TR/css-color-4/#color-conversion-code}

@@ -1,8 +1,8 @@
 import type { RGB, RGBA } from "./image.js"
-import type { Tree } from "./compression.js"
+import type { Tree } from "./huffman.js"
 import { alphaBlendTo, medianCut } from "./image.js"
 import { getPixel, setPixel, colorToNumber, numberToColor } from "./util.js"
-import { compress, readBitStream, repeatSymbol } from "./compression.js"
+import { compress, readBitStream, repeatSymbol } from "./huffman.js"
 import { getTextImages } from "./text.js"
 import type { TextSources } from "./types.js"
 
@@ -327,19 +327,12 @@ export function createBitmapFormClone(bitmapObject: {kind: BitmapKind}): Bitmap 
 const MASK_LIGHT = 0.75
 const MASK_COLOR = `rgb(${255*MASK_LIGHT}, ${255*MASK_LIGHT}, ${255*MASK_LIGHT})`
 export async function getBitmaps(
-  /*alphabet: string[],
-  height: number,
-  fontWeight: number,
-  fontFamily: string[],
-  alignBaseline: boolean,
-  padding: any*/
   alphabet: TextSources,
   height: number,
   fontWeight: number
   ){
-  //const images = await getAlphabet(alphabet, height, fontWeight, fontFamily, alignBaseline, padding, MASK_COLOR)
   const images = await getTextImages(alphabet, height, fontWeight, MASK_COLOR)
-  return images.map(image=>new CompressedBitmap(image))
+  return images.map(image=>new AlphaBitmap(image))
 }
 
 //export function getBitmapsFromSVG(svgs, height, padding)

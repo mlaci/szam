@@ -1,6 +1,6 @@
 import { RGBA } from "./image.js"
 
-type Box = {width: number, height: number}
+export type Box = {width: number, height: number}
 /**
  * Resizes a `box` to fit into a `container` box by maintaining the box original aspect ratio.
  * Similarly as CSS object-fit: contain works.
@@ -230,4 +230,80 @@ export function numberToColor(colorNumber: number): RGBA {
     (colorNumber & 0x00_00_FF_00) >>> 8,
     (colorNumber & 0x00_00_00_FF) >>> 0
   ]
+}
+
+/**
+ * Detects an image content horizontal bounds.
+ * @param image - An image to process.
+ * @returns Left and right bound.
+ */
+export function horizontalBounds(image: ImageData){
+  const last = image.width*image.height-1
+  let left: number
+  let offset = 0
+  while(left == undefined){
+    const alpha = getPixel(image, offset)[3]
+    if(alpha != 0){
+      left = offset % image.width - 1
+    }
+    offset = offset + image.width
+    if(offset > last){
+      offset = (offset + 1) % image.width
+      if(offset == 0){
+        break
+      }
+    }
+  }
+  let right: number
+  offset = last
+  while(right == undefined){
+    const alpha = getPixel(image, offset)[3]
+    if(alpha != 0){
+      right = offset % image.width + 1
+    }
+    offset = offset - image.width
+    if(offset < 0){
+      offset = offset + last
+      if(offset == last - image.width){
+        break
+      }
+    }
+  }
+  return {left, right}
+}
+
+/**
+ * Detects an image content vertical bounds.
+ * @param image - An image to process.
+ * @returns Top and bottom bound.
+ */
+export function verticalBounds(image: ImageData){
+  const last = image.width*image.height-1
+  let top: number
+  let offset = 0
+  while(top == undefined){
+    const alpha = getPixel(image, offset)[3]
+    if(alpha != 0){
+      top = Math.floor(offset / image.width)
+    }
+    offset++
+    if(offset > last){
+      break
+    }
+  }
+  let bottom: number
+  offset = last
+  while(bottom == undefined){
+    const alpha = getPixel(image, offset)[3]
+    if(alpha != 0){
+      bottom = Math.ceil(offset / image.width)
+    }
+    offset--
+    if(offset < 0){
+      break
+    }
+  }
+  /*top = top != undefined ? top - 1 : undefined
+  bottom = bottom != undefined ? bottom + 1 : undefined*/
+  return {top, bottom}
 }

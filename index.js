@@ -23,7 +23,32 @@ import { CalcWorker } from "./proxy.js"
 const SMALLEST_FONT = 7
 const ANIMATION = true
 const BACKGROUND_COLOR = [255, 255, 255]
-const ALPHABET = [..."0123456789"]
+const ALPHABET = {
+  texts: [
+    {text: "0"},
+    {text: "1"},
+    {text: "2"},
+    {text: "3"},
+    {text: "4"},
+    {text: "5"},
+    {text: "6"},
+    {text: "7"},
+    {text: "8"},
+    {text: "9"},
+  ],
+  fontFamily: ["'Work Sans'", "Arial", "san-serif"],
+  fontWeight: {min: 400, max: 600},
+  padding: {
+    x: size => {
+      const small = -0.3
+      const point = 15
+      const big = -0.05
+      const ratio = (point - size) / (point - SMALLEST_FONT)
+      return size<point ? ratio * small + (1 - ratio) * big : big
+    },
+    y: 0.02
+  }
+}
 
 const threads = navigator.hardwareConcurrency-1 || 1
 
@@ -61,20 +86,11 @@ async function main(){
     console.time("layer")
     console.log(cellHeight)
     const ratio = ease(Math.log2(canvas.height/cellHeight) / Math.log2(canvas.height/SMALLEST_FONT), 20)
-    const fontWeight = Math.round(400 + 200*ratio)
-    const fontFamily = ["'Work Sans'", "Arial", "san-serif"]
-    const fontPadding = {
-      x: size => {
-        const small = -0.3
-        const point = 15
-        const big = -0.05
-        const ratio = (point - size) / (point - SMALLEST_FONT)
-        return size<point ? ratio * small + (1 - ratio) * big : big
-      },
-      y: 0.02
-    }
+    const min = ALPHABET.fontWeight?.min || 400
+    const diff = ALPHABET.fontWeight?.max - ALPHABET.fontWeight?.min || 200
+    const fontWeight = Math.round(min + diff*ratio)
     console.time("bitmap")
-    const bitmaps = await getBitmaps(ALPHABET, cellHeight, fontWeight, fontFamily, true, fontPadding)
+    const bitmaps = await getBitmaps(ALPHABET, cellHeight, fontWeight)
     console.timeEnd("bitmap")
     cellHeight = bitmaps[0].height
     const cellWidth = bitmaps[0].width
