@@ -1,3 +1,5 @@
+import type { RGB } from "./image.js"
+import type { Bitmap, BitmapKind } from "./bitmap.js"
 import {
   getPixel,
   getBufferValue,
@@ -5,8 +7,8 @@ import {
 } from "./util.js"
 
 import {
-  gam_sRGB,
   linearizeColor,
+  nonlinearizeColor,
   blendTo,
   colorDistance
 } from "./image.js"
@@ -19,9 +21,11 @@ import {
 
 import { getMedian } from "./geometric-median.js"
 
-function getPenalty(original, image, diffArray, cellOffset, bitmap){
+const BACKGROUND_COLOR = [255, 255, 255] as const
+
+function getPenalty(original: ImageData, image: ImageData, diffArray: Float32Array, cellOffset: number, bitmap: Bitmap): number {
   let penalty = 0
-  for(let offset = 0; offset < bitmap.width*bitmap.height; offset++){
+  for(let offset = 0; offset < bitmap.length; offset++){
     const pixelOffset = cellOffset + offset
     const originalColor = getPixel(original, pixelOffset)
     const imageColor = blendTo(linearizeColor(getPixel(image, pixelOffset)), BACKGROUND_COLOR)
@@ -31,7 +35,7 @@ function getPenalty(original, image, diffArray, cellOffset, bitmap){
   return penalty
 }
 
-function setDiff(image, original, diffArray, cellOffset, bitmap){
+function setDiff(image: ImageData, original: ImageData, diffArray: Float32Array, cellOffset: number, bitmap: Bitmap): void {
   for(let {offset} of bitmap){
     const pixelOffset = cellOffset + offset
     const originalColor = getPixel(original, pixelOffset)
@@ -40,11 +44,20 @@ function setDiff(image, original, diffArray, cellOffset, bitmap){
   }
 }
 
-const BACKGROUND_COLOR = [255, 255, 255]
+interface CalcParameters {
+  originalFlat: ImageData,
+  imageFlat: ImageData,
+  lettersFlatOriginal: ImageData,
+  diffArrayFlat: Float32Array,
+  gridlength: number,
+  cellLength: number,
+  bitmaps: {kind: BitmapKind}[]
+}
 
-async function* calc({originalFlat, imageFlat, lettersFlatOriginal, diffArrayFlat, gridlength, cellLength, bitmaps: bitmapClones}){
+async function* calc(params: CalcParameters){
+  const {originalFlat, imageFlat, lettersFlatOriginal, diffArrayFlat, gridlength, cellLength, bitmaps: bitmapClones} = params
   const bitmaps = bitmapClones.map(clone=>createBitmapFormClone(clone))
-  const cells = []
+  const cells: {offset: number, best: {penalty: number, bitmap?: Bitmap, color?: RGB}, color?: RGB}[] = []
   for(let i = 0; i<gridlength; i++){
     cells.push({offset: i*cellLength, best: {penalty: Infinity}})
   }
@@ -54,7 +67,7 @@ async function* calc({originalFlat, imageFlat, lettersFlatOriginal, diffArrayFla
       const {offset} = cell
       const bitmap = bitmaps[i]
       const colors = maskColorsFrom(originalFlat, offset, bitmap)
-      cell.color = getMedian(colors).map(val=>gam_sRGB(val/255)*255)
+      cell.color = nonlinearizeColor(getMedian(colors) as RGB)
       drawBitmapTo(lettersFlat, offset, bitmap, cell.color)
     }
 
@@ -85,7 +98,7 @@ const functions = {
 
 globalThis.addEventListener("message", async ({data: {name, id, message}})=>{
   if(functions[name].constructor.name == "AsyncGeneratorFunction"){
-    const generator = functions[name](message)
+    const generator: AsyncGenerator = functions[name](message)
     var done = false
     while(!done){
       const result = await generator.next()

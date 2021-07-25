@@ -40,13 +40,45 @@ const gam_sRGBLookup = [...Array(COLOR_VALUE_MAX + 1)
  * @param color - sRGB color in gamma corrected form.
  * @returns sRGB color in linear-light form.
  */
-export function linearizeColor(color: RGBA): RGBA {
-  return [
-    lin_sRGBLookup[color[0]],
-    lin_sRGBLookup[color[1]],
-    lin_sRGBLookup[color[2]],
-    color[3]
-  ] as const
+export function linearizeColor<T extends RGB | RGBA>(color: T): T {
+  if(color.length == 3){
+    return [
+      lin_sRGBLookup[color[0]],
+      lin_sRGBLookup[color[1]],
+      lin_sRGBLookup[color[2]]
+    ] as unknown as T
+  }
+  else{
+    return [
+      lin_sRGBLookup[color[0]],
+      lin_sRGBLookup[color[1]],
+      lin_sRGBLookup[color[2]],
+      color[3]
+    ] as unknown as T
+  }
+}
+
+/**
+ * Converts a linear-light sRGB color to gamma corrected sRGB color.
+ * @param color - sRGB color in linear-light form.
+ * @returns sRGB color in gamma corrected form.
+ */
+export function nonlinearizeColor<T extends RGB | RGBA>(color: T): T {
+  if(color.length == 3){
+    return [
+      gam_sRGBLookup[Math.round(color[0])],
+      gam_sRGBLookup[Math.round(color[1])],
+      gam_sRGBLookup[Math.round(color[2])]
+    ] as unknown as T
+  }
+  else{
+    return [
+      gam_sRGBLookup[Math.round(color[0])],
+      gam_sRGBLookup[Math.round(color[1])],
+      gam_sRGBLookup[Math.round(color[2])],
+      color[3]
+    ] as unknown as T
+  }
 }
 
 /**

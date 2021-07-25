@@ -12,6 +12,8 @@
     "bitmap.ts",
     "huffman.ts",
     "util.ts",
-    "text.ts"
+    "text.ts",
+    "proxy.ts",
+    "worker.ts"
   ]
 }

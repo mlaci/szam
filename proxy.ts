@@ -1,5 +1,7 @@
-function postMessage(target, name, message){
-  const id = Math.floor(Math.random()*Number.MAX_SAFE_INTEGER).toString(16)
+import type { Bitmap } from "./bitmap.js"
+
+function postMessage(target: Worker, name: string, message: any){
+  const id = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(16)
   return new Promise(resolve=>{
     target.postMessage({name, id, message})
     target.addEventListener("message", function listener({data}){
@@ -11,8 +13,8 @@ function postMessage(target, name, message){
   })
 }
 
-function generatorPostMessage(target, name, message, next){
-  const id = Math.floor(Math.random()*Number.MAX_SAFE_INTEGER).toString(16)
+function generatorPostMessage(target: Worker, name: string, message: any, next: (message: {value: any, done: boolean}) => void){
+  const id = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(16)
   target.postMessage({name, id, message})
   return new Promise(resolve=>{
     target.addEventListener("message", function listener({data}){
@@ -31,15 +33,22 @@ function generatorPostMessage(target, name, message, next){
 }
 
 export class CalcWorker {
-  worker
-  constructor(worker){
-    this.worker = worker
+  constructor(public worker: Worker){
   }
-  async calc(originalFlat, imageFlat, lettersFlatOriginal, diffArrayFlat, gridlength, cellLength, bitmaps, draw){
+  async calc(
+    originalFlat: ImageData, 
+    imageFlat: ImageData, 
+    lettersFlatOriginal: ImageData, 
+    diffArrayFlat: Float32Array, 
+    gridlength: number, 
+    cellLength: number, 
+    bitmaps: Bitmap[], 
+    draw: (lettersFlat: ImageData) => void
+  ){
     var done = false
-    var lastMessage
+    var lastMessage: ImageData
     var newMessage = false
-    function next(message){
+    function next(message: {value: ImageData, done: boolean}){
       if(message.done){
         done = true
       }

@@ -6,10 +6,10 @@ import { compress, readBitStream, repeatSymbol } from "./huffman.js"
 import { getTextImages } from "./text.js"
 import type { TextSources } from "./types.js"
 
-type BitmapKind = keyof typeof bitmapKinds
+export type BitmapKind = keyof typeof bitmapKinds
 
 /** Class represents a generic bitmap. */
-abstract class Bitmap {
+export abstract class Bitmap {
   /** Type of the subclass */
   readonly kind: BitmapKind
   width: number
