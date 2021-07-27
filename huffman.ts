@@ -1,7 +1,11 @@
 type Bit = 0 | 1
 
-type ValueNode<T> = {value: T, count: number, index: number}
-type InnerNode<T> = {
+interface ValueNode<T> {
+  value: T,
+  count: number,
+  index: number
+}
+interface InnerNode<T> {
   count: number
   left?: TreeNode<T>
   right?: TreeNode<T>
@@ -130,7 +134,7 @@ function codes<T>(node: TreeNode<T>, prefix: Bit[] = []): Table<T> {
   }
 }
 
-type CompressionInput<T> = {
+interface CompressionInput<T> {
   data: DataView
   literals: ValueNode<T>[]
   lengths: ValueNode<number>[]

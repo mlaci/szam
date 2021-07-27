@@ -159,7 +159,10 @@ export function colorDistance(color1: RGB | RGBA, color2: RGB | RGBA){
 }
 
 type Vector<T, Dim> = readonly T[] & {readonly length: Dim}
-type VectorObject<Dim extends number> = {value: Vector<number, Dim>, count: number}
+interface VectorObject<Dim extends number> {
+  value: Vector<number, Dim>,
+  count: number
+}
 /**
  * Groups objects to `n` arrays
  * by minimizing the `object.value` vectors distance between each dimension in a group

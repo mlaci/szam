@@ -2,7 +2,7 @@ import type { Color, Texts, TextSources } from "./types.js"
 import type { Box } from "./util.js"
 import { createCanvas, verticalBounds, horizontalBounds } from "./util.js"
 
-let xmlSerializer
+let xmlSerializer: XMLSerializer
 
 function textImageFromCanvas(text: string, box: Box, left: number, baseline: number, font: FontProp, color: Color = "black"){
   const canvas = createCanvas(box.width, box.height)

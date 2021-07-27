@@ -1,6 +1,10 @@
 import { RGBA } from "./image.js"
 
-export type Box = {width: number, height: number}
+export interface Box {
+  width: number,
+  height: number
+}
+
 /**
  * Resizes a `box` to fit into a `container` box by maintaining the box original aspect ratio.
  * Similarly as CSS object-fit: contain works.
@@ -13,7 +17,10 @@ export function fit(box: Box, container: Box): Box {
   return {width: box.width * ratio, height: box.height * ratio}
 }
 
-type Range = {start: number, length: number}
+interface Range {
+  start: number,
+  length: number
+}
 /**
  * Slices a `range` to `n` evenly sliced ranges.
  * The first n-1 range lengths are rounded up.
@@ -303,7 +310,5 @@ export function verticalBounds(image: ImageData){
       break
     }
   }
-  /*top = top != undefined ? top - 1 : undefined
-  bottom = bottom != undefined ? bottom + 1 : undefined*/
   return {top, bottom}
 }
