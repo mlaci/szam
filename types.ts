@@ -1,3 +1,20 @@
+export interface Box {
+  width: number,
+  height: number
+}
+
+export interface XY {
+  x: number
+  y: number
+}
+export interface Grid {
+  width: number
+  height: number
+  length: number
+  offsetW: number
+  offsetZ: number
+}
+
 export type Color = string | `rgb(${number}, ${number}, ${number})` | `rgba(${number}, ${number}, ${number}, ${number})`
 
 export interface Texts {

@@ -1,9 +1,5 @@
-import { RGBA } from "./image.js"
-
-export interface Box {
-  width: number,
-  height: number
-}
+import type { Box } from "./types.js"
+import type { RGBA } from "./image.js"
 
 /**
  * Resizes a `box` to fit into a `container` box by maintaining the box original aspect ratio.

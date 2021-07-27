@@ -1,5 +1,5 @@
-import type { Color, Texts, TextSources } from "./types.js"
-import type { Box } from "./util.js"
+import type { Color, TextSources } from "./types.js"
+import type { Box } from "./types.js"
 import { createCanvas, verticalBounds, horizontalBounds } from "./util.js"
 
 let xmlSerializer: XMLSerializer
