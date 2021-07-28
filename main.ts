@@ -27,6 +27,13 @@ import {
 
 import { CalcWorker } from "./proxy.js"
 
+const workSansFull = new FontFace("Work Sans", "url(./QGYsz_wNahGAdqQ43Rh_fKDp.woff2) format('woff2')", {
+  style: "normal",
+  weight: "100 1000",
+  display: "swap",
+  unicodeRange: "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD"
+})
+
 const numbers: Texts = {
   texts: [
     {text: "0"},
@@ -41,6 +48,7 @@ const numbers: Texts = {
     {text: "9"},
   ],
   smallestSize: 7,
+  fontFace: workSansFull,
   fontFamily: ["'Work Sans'", "Arial", "san-serif"],
   fontWeight: {min: 400, max: 600, factor: 20},
   padding: {
@@ -84,6 +92,11 @@ main()
 
 async function drawFrame(canvas: Canvas, frame: Frame){
   const { alphabet, imageSource, animation, backgroundColor } = frame
+  if("fontFace" in alphabet && alphabet.fontFace){
+    alphabet.fontFace.load()
+    //@ts-ignore
+    document.fonts.add(alphabet.fontFace)
+  }
   const canvasRect = canvas.getClientRects()[0]
   const container: Rect = {
     width: canvasRect.width * devicePixelRatio,

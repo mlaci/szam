@@ -26,7 +26,7 @@ export interface Texts {
   smallestSize: number
   fontFamily?: string[]
   fontWeight?: {min: number, max: number, factor: number}
-  fontSource?: string
+  fontFace?: FontFace
   textLength?: number
   alignBaseline?: boolean
   padding: {
