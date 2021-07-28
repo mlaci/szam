@@ -1,10 +1,10 @@
 import type { Color, TextSources } from "./types.js"
-import type { Box } from "./types.js"
+import type { Rect } from "./types.js"
 import { createCanvas, verticalBounds, horizontalBounds } from "./util.js"
 
 let xmlSerializer: XMLSerializer
 
-function textImageFromCanvas(text: string, box: Box, left: number, baseline: number, font: FontProp, color: Color = "black"){
+function textImageFromCanvas(text: string, box: Rect, left: number, baseline: number, font: FontProp, color: Color = "black"){
   const canvas = createCanvas(box.width, box.height)
   canvas.context.fillStyle = color
   canvas.context.textAlign = "left"
@@ -14,7 +14,7 @@ function textImageFromCanvas(text: string, box: Box, left: number, baseline: num
   return canvas.context.getImageData(0, 0, canvas.width, canvas.height)
 }
 
-async function textImageFromSvg(text: string, box: Box, left: number, baseline: number, font: FontProp, textLength: number, color: Color = "black"){
+async function textImageFromSvg(text: string, box: Rect, left: number, baseline: number, font: FontProp, textLength: number, color: Color = "black"){
   const container = document.querySelector("#svg-creator")
   const svgString = `<svg width="${box.width}" height="${box.height}" viewBox="0 0 ${box.width} ${box.height}" xmlns="http://www.w3.org/2000/svg">
     <text 
@@ -146,7 +146,7 @@ export async function getTextImages(alphabet: TextSources, height: number, fontW
   const scaledMetric = await measureTexts(texts, scaledFont, textLength)
   const scaledFontHeight = alignBaseline ? (scaledMetric.maxAscent + scaledMetric.maxDescent) : scaledMetric.maxHeight
   const actualHeight = scaledFontHeight * (1 + alphabet.padding.y)
-  const box: Box = {
+  const box: Rect = {
     width: scaledMetric.maxWidth * (1 + alphabet.padding.x(height)),
     height: height > 30 && height < actualHeight ? height : actualHeight //!!
   }

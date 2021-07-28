@@ -1,6 +1,5 @@
 node_modules
 *.js
-!index.js
 !calibrate.js
 !emoji-download.js
 !emoji.js

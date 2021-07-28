@@ -4,7 +4,7 @@ import { alphaBlendTo, medianCut } from "./image.js"
 import { getPixel, setPixel, colorToNumber, numberToColor } from "./util.js"
 import { compress, readBitStream, repeatSymbol } from "./huffman.js"
 import { getTextImages } from "./text.js"
-import type { TextSources } from "./types.js"
+import type { Alphabet, TextSources } from "./types.js"
 
 export type BitmapKind = keyof typeof bitmapKinds
 
@@ -327,12 +327,25 @@ export function createBitmapFormClone(bitmapObject: {kind: BitmapKind}): Bitmap 
 const MASK_LIGHT = 0.75
 const MASK_COLOR = `rgb(${255*MASK_LIGHT}, ${255*MASK_LIGHT}, ${255*MASK_LIGHT})`
 export async function getBitmaps(
-  alphabet: TextSources,
+  alphabet: Alphabet,
   height: number,
-  fontWeight: number
+  fontWeight: number = 400
   ){
-  const images = await getTextImages(alphabet, height, fontWeight, MASK_COLOR)
-  return images.map(image=>new AlphaBitmap(image))
+  if("uris" in alphabet){
+    alphabet
+  }
+  else if("aspectRatio" in alphabet){
+    alphabet
+  }
+  else{
+    const images = await getTextImages(alphabet, height, fontWeight, MASK_COLOR)
+    if("color" in alphabet.texts[0] || false /* TextEmojis*/){
+      return images.map(image=>new ColorBitmap(image))
+    }
+    else{
+      return images.map(image=>new AlphaBitmap(image))
+    }
+  }
 }
 
 //export function getBitmapsFromSVG(svgs, height, padding)

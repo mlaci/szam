@@ -15,6 +15,7 @@
     "text.ts",
     "proxy.ts",
     "worker.ts",
-    "flatten.ts"
+    "flatten.ts",
+    "main.ts"
   ]
 }

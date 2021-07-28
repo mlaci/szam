@@ -1,16 +1,17 @@
-import type { Box } from "./types.js"
-import type { RGBA } from "./image.js"
+import type { Rect } from "./types.js"
+import type { RGB, RGBA } from "./image.js"
+import { colorDistance } from "./image.js"
 
 /**
- * Resizes a `box` to fit into a `container` box by maintaining the box original aspect ratio.
+ * Resizes a rectangle to fit into a container rectangle by maintaining the rectangle original aspect ratio.
  * Similarly as CSS object-fit: contain works.
- * @param box - The box to resize.
- * @param container - The container box to the box fit into.
- * @returns The new scaled box.
+ * @param rect - The rectangle to resize.
+ * @param container - The container rectangle to the rectangle fit into.
+ * @returns The new scaled rectangle.
  */
-export function fit(box: Box, container: Box): Box {
-  const ratio = Math.min(container.width / box.width, container.height / box.height)
-  return {width: box.width * ratio, height: box.height * ratio}
+export function fit(rect: Rect, container: Rect): Rect {
+  const ratio = Math.min(container.width / rect.width, container.height / rect.height)
+  return {width: rect.width * ratio, height: rect.height * ratio}
 }
 
 interface Range {
@@ -67,7 +68,7 @@ export function easeInOut(n: number, factor: number){
   return n<0.5 ? ease(n*2, factor)/2 : 1-ease(2-n*2, factor)/2
 }
 
-type Canvas = HTMLCanvasElement & {context: CanvasRenderingContext2D}
+export type Canvas = HTMLCanvasElement & {context: CanvasRenderingContext2D}
 /**
  * Creates a canvas with `width` and `height` dimensions.
  * @param width - The canvas width.
@@ -126,13 +127,49 @@ export function setPixel(image: ImageData, offset: number, color: RGBA): void {
   image.data[offset + 3] = color[3]
 }
 
+export class ImageDiff extends Float32Array {
+  width: number
+  height: number
+  constructor(buffer: ArrayBuffer, width: number)
+  constructor(width: number, height: number)
+  constructor(image: ImageData, backgroundColor: RGB)
+  constructor(...args: [number, number] | [ArrayBuffer, number] | [ImageData, RGB]){
+    if(typeof args[0] == "number"){
+      const [width, height] = args as [number, number]
+      super(width * height)
+      this.width = width
+      this.height = height
+    }
+    else if(args[0] instanceof ArrayBuffer){
+      const [buffer, width] = args as [ArrayBuffer, number]
+      super(buffer)
+      this.width = width
+      this.height = buffer.byteLength / 4 / width
+    }
+    else{
+      const [image, backgroundColor] = args as [ImageData, RGB]
+      const length = image.width * image.height
+      super(length)
+      this.width = image.width
+      this.height = image.height
+      for(let offset = 0; offset < length; offset++){
+        const originalColor = getPixel(image, offset)
+        setImageDiffValue(this, offset, colorDistance(originalColor, backgroundColor))
+      }
+    }
+  }
+  static get [Symbol.species](){
+    return Float32Array
+  }
+}
+
 /**
  * Returns one element of a buffer.
  * @param buffer - Source buffer.
  * @param offset - Location of the element.
  * @returns Value of the buffer.
  */
-export function getBufferValue(buffer: Float32Array, offset: number){
+export function getImageDiffValue(buffer: ImageDiff, offset: number){
   return buffer[offset]
 }
 
@@ -142,7 +179,7 @@ export function getBufferValue(buffer: Float32Array, offset: number){
  * @param offset - Location of the element to set.
  * @param value - Value of the element to set.
  */
-export function setBufferValue(buffer: Float32Array, offset: number, value: number): void {
+export function setImageDiffValue(buffer: ImageDiff, offset: number, value: number): void {
   buffer[offset] = value
 }
 
@@ -195,12 +232,12 @@ export function compose(dest: Canvas, source: Canvas, mode: CompositeMode = "sou
 }
 
 /**
- * Converts and resizes a blob to an image which fits into a specified container box.
+ * Converts and resizes a blob to an image which fits into a specified container rectangle.
  * @param blob - An image stored in a blob.
- * @param container - The container box for the resize.
+ * @param container - The container rectangle for the resize.
  * @returns The image data.
  */
-export async function blobToImageData(blob: Blob, container: Box): Promise<ImageData>{
+export async function blobToImageData(blob: Blob, container: Rect): Promise<ImageData>{
   const img = document.createElement("img")
   img.decoding = "async"
   img.src = URL.createObjectURL(blob)
