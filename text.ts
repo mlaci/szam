@@ -1,12 +1,13 @@
 import type { Color, TextSources } from "./types.js"
 import type { Rect } from "./types.js"
+import type { RGB } from "./image.js" 
 import { createCanvas, verticalBounds, horizontalBounds } from "./util.js"
 
 let xmlSerializer: XMLSerializer
 
-function textImageFromCanvas(text: string, box: Rect, left: number, baseline: number, font: FontProp, color: Color = "black"){
+function textImageFromCanvas(text: string, box: Rect, left: number, baseline: number, font: FontProp, color?: RGB){
   const canvas = createCanvas(box.width, box.height)
-  canvas.context.fillStyle = color
+  canvas.context.fillStyle = color ? `rgb(${color})` : "black"
   canvas.context.textAlign = "left"
   canvas.context.textBaseline = "alphabetic"
   canvas.context.font = font.toString()
@@ -14,12 +15,12 @@ function textImageFromCanvas(text: string, box: Rect, left: number, baseline: nu
   return canvas.context.getImageData(0, 0, canvas.width, canvas.height)
 }
 
-async function textImageFromSvg(text: string, box: Rect, left: number, baseline: number, font: FontProp, textLength: number, color: Color = "black"){
+async function textImageFromSvg(text: string, box: Rect, left: number, baseline: number, font: FontProp, textLength: number, color?: RGB){
   const container = document.querySelector("#svg-creator")
   const svgString = `<svg width="${box.width}" height="${box.height}" viewBox="0 0 ${box.width} ${box.height}" xmlns="http://www.w3.org/2000/svg">
     <text 
       x="${left}" y="${baseline}"
-      fill="${color}"
+      fill="${color ? `rgb(${color})` : "black"}"
       font-size="${font.size}px"
       font-weight="${font.weight}"
       font-family="${font.family.join(", ")}"
@@ -127,7 +128,7 @@ async function measureTexts(texts: string[], font: FontProp, textLength?: number
   return {metrics, maxAscent, maxDescent, maxHeight, maxWidth}
 }
 
-export async function getTextImages(alphabet: TextSources, height: number, fontWeight: number, baseColor?: Color){
+export async function getTextImages(alphabet: TextSources, height: number, fontWeight: number, baseColor?: RGB){
   const texts = []
   for(const letter of alphabet.texts){
     const text = letter.text.trim()

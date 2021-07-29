@@ -5,6 +5,7 @@ import {
   ImageDiff,
   getImageDiffValue,
   setImageDiffValue,
+  shuffle
 } from "./util.js"
 
 import {
@@ -53,24 +54,55 @@ interface CalcParameters {
   gridlength: number,
   cellLength: number,
   bitmaps: {kind: BitmapKind}[],
+  palette: RGB[],
   animation: boolean
 }
 
 async function* calc(params: CalcParameters){
-  const {original, image, letters: lettersOriginal, imageDiff, gridlength, cellLength, bitmaps: bitmapClones, animation} = params
+  const {original, image, letters: lettersOriginal, imageDiff, gridlength, cellLength, bitmaps: bitmapClones, palette, animation} = params
   const bitmaps = bitmapClones.map(clone=>createBitmapFormClone(clone))
-  const cells: {offset: number, best: {penalty: number, bitmap?: Bitmap, color?: RGB}, color?: RGB}[] = []
-  for(let i = 0; i<gridlength; i++){
-    cells.push({offset: i*cellLength, best: {penalty: Infinity}})
+  const cells: {
+    offset: number,
+    bitmaps: Bitmap[],
+    best: {
+      penalty: number, 
+      bitmap?: Bitmap, 
+      color?: RGB
+    },
+    actualColor?: RGB
+  }[] = []
+  for(let cellIndex = 0; cellIndex < gridlength; cellIndex++){
+    cells.push({
+      offset: cellIndex * cellLength, 
+      bitmaps: [...shuffle(bitmaps)],
+      best: {
+        penalty: Infinity
+      }
+    })
   }
   for(let i = 0; i < bitmaps.length; i++){
     const letters = new ImageData(lettersOriginal.data.slice(0), lettersOriginal.width, lettersOriginal.height)
     for(let cell of cells){
-      const {offset} = cell
+      const {offset, bitmaps} = cell
       const bitmap = bitmaps[i]
       const colors = maskColorsFrom(original, offset, bitmap)
-      cell.color = nonlinearizeColor(getMedian(colors) as RGB)
-      drawBitmapTo(letters, offset, bitmap, cell.color)
+      const medianColor = nonlinearizeColor(getMedian(colors) as RGB)
+      if(palette){
+        let smallestDistance = Infinity
+        let nearestColor: RGB
+        for(let color of palette){
+          const distance = colorDistance(medianColor, color)
+          if(distance < smallestDistance){
+            smallestDistance = distance
+            nearestColor = color
+          }
+        }
+        cell.actualColor = nearestColor
+      }
+      else{
+        cell.actualColor = medianColor
+      }
+      drawBitmapTo(letters, offset, bitmap, cell.actualColor)
     }
 
     if(animation){
@@ -78,14 +110,14 @@ async function* calc(params: CalcParameters){
     }
 
     for(let cell of cells){
-      const {color, offset} = cell
-      cell.best ??= {penalty: Infinity}
+      const {bitmaps, offset} = cell
       const bitmap = bitmaps[i]
+      cell.best ??= {penalty: Infinity}
       const diffPenalty = getPenalty(original, letters, imageDiff, offset, bitmap)
       if (diffPenalty < cell.best.penalty) {
         cell.best.penalty = diffPenalty
         cell.best.bitmap = bitmap
-        cell.best.color = color
+        cell.best.color = cell.actualColor
       }
     }
   }

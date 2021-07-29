@@ -4,7 +4,7 @@ import { alphaBlendTo, medianCut } from "./image.js"
 import { getPixel, setPixel, colorToNumber, numberToColor } from "./util.js"
 import { compress, readBitStream, repeatSymbol } from "./huffman.js"
 import { getTextImages } from "./text.js"
-import type { Alphabet, TextSources } from "./types.js"
+import type { Alphabet } from "./types.js"
 
 export type BitmapKind = keyof typeof bitmapKinds
 
@@ -325,7 +325,7 @@ export function createBitmapFormClone(bitmapObject: {kind: BitmapKind}): Bitmap 
 }
 
 const MASK_LIGHT = 0.75
-const MASK_COLOR = `rgb(${255*MASK_LIGHT}, ${255*MASK_LIGHT}, ${255*MASK_LIGHT})`
+const MASK_COLOR = [255*MASK_LIGHT, 255*MASK_LIGHT, 255*MASK_LIGHT] as const
 export async function getBitmaps(
   alphabet: Alphabet,
   height: number,

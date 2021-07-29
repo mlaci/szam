@@ -22,7 +22,7 @@ export interface Grid {
 export type Color = string | `rgb(${number}, ${number}, ${number})` | `rgba(${number}, ${number}, ${number}, ${number})`
 
 export interface Texts {
-  texts: {text: string}[] | {text: string, color: Color}[]
+  texts: {text: string}[] | {text: string, color: RGB}[]
   smallestSize: number
   fontFamily?: string[]
   fontWeight?: {min: number, max: number, factor: number}
@@ -62,7 +62,7 @@ export interface Frame {
   imageSource: string
   smallerImageSource?: string
   alphabet: Alphabet
-  palette?: "all-color" | {quantization: number} | Color[]
+  palette?: "all-color" | {quantization: number} | RGB[]
   animation: boolean
   backgroundColor: RGB
   epilogue: {

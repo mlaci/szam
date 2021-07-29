@@ -1,4 +1,5 @@
 import type { Bitmap } from "./bitmap.js"
+import type { RGB } from "./image.js"
 import { ImageDiff } from "./util.js"
 
 function postMessage(target: Worker, name: string, message: any){
@@ -45,6 +46,7 @@ export class CalcWorker extends Worker {
     gridlength: number, 
     cellLength: number, 
     bitmaps: Bitmap[],
+    palette: RGB[],
     animation: boolean,
     draw: (lettersFlat: ImageData) => void
   ){
@@ -70,7 +72,7 @@ export class CalcWorker extends Worker {
       }
     }
     nextFrame()
-    const message = {original, image, letters, imageDiff, gridlength, cellLength, bitmaps, animation}
+    const message = {original, image, letters, imageDiff, gridlength, cellLength, bitmaps, palette, animation}
     return generatorPostMessage(this, "calc", message, next)
   }
 }

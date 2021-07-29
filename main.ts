@@ -1,5 +1,6 @@
-import type { Rect, Grid, Texts, Frame } from "./types.js"
-import type { Canvas } from "./util.js"
+import type { Rect, Grid, Texts, Frame} from "./types.js"
+import type { RGB } from "./image.js"
+import type { Canvas, ColorName } from "./util.js"
 import {
   sliceEvenly,
   ease,
@@ -7,7 +8,8 @@ import {
   ImageDiff,
   log2Sequence,
   compose,
-  blobToImageData
+  blobToImageData,
+  colorNameToRGB
 } from "./util.js"
 
 import {
@@ -63,12 +65,15 @@ const numbers: Texts = {
   }
 }
 
+const basicColors: ColorName[] = ["black", "silver", "gray", "white", "maroon", "red", "purple", "fuchsia", "green", "lime", "olive", "yellow", "navy", "blue", "teal", "aqua"]
+
 const chevyFrame: Frame = {
   title: "Chevy",
   imageSource: "https://upload.wikimedia.org/wikipedia/commons/1/1c/1998_Chevrolet_Corvette_C5_at_Hatfield_Heath_Festival_2017.jpg",
   alphabet: numbers,
-  animation: true,
+  palette: basicColors.map(colorNameToRGB), //{quantization: 16},
   backgroundColor: [255, 255, 255] as const,
+  animation: true,
   epilogue: {
     text: "",
     duration: 5000
@@ -86,13 +91,13 @@ function getCanvas(): Canvas {
 
 async function main(){
   const canvas = getCanvas()
-  await drawFrame(canvas, chevyFrame)
+  await playFrame(canvas, chevyFrame)
 }
 main()
 
-async function drawFrame(canvas: Canvas, frame: Frame){
-  const { alphabet, imageSource, animation, backgroundColor } = frame
-  if("fontFace" in alphabet && alphabet.fontFace){
+async function playFrame(canvas: Canvas, frame: Frame){
+  const { alphabet, imageSource } = frame
+  if("fontFace" in alphabet && alphabet.fontFace instanceof FontFace){
     alphabet.fontFace.load()
     //@ts-ignore
     document.fonts.add(alphabet.fontFace)
@@ -105,16 +110,36 @@ async function drawFrame(canvas: Canvas, frame: Frame){
   const blob = await fetch(imageSource).then(res=>res.blob())
   const original = await blobToImageData(blob, container)
   const originalCanvas = createCanvasFrom(original)
+  await drawImage(canvas, original, frame)
+  compose(canvas, originalCanvas, "destination-over")
+  const final = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
+  while(true){
+    canvas.context.putImageData(original, 0, 0)
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    canvas.context.putImageData(final, 0, 0)
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+}
+
+async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
+  const { alphabet, animation, backgroundColor } = frame
+
+  let palette: RGB[]
+  if(frame.palette instanceof Array){
+    palette = frame.palette
+  }
+  else if(frame.palette instanceof Object){
+    //TODO quant
+  }
+  
   const originalLinear = linearizeImage(original)
   canvas.width = original.width
   canvas.height = original.height
-  const canvasDim = [0, 0, canvas.width, canvas.height] as const
+  
   const image = new ImageData(canvas.width, canvas.height)
   const imageDiff = new ImageDiff(originalLinear, backgroundColor)
-  console.time("total")
+
   for (let cellHeight of log2Sequence(canvas.height, alphabet.smallestSize)){
-    console.time("layer")
-    console.log(cellHeight)
 
     let fontWeight: number
     if("fontWeight" in alphabet){
@@ -160,7 +185,7 @@ async function drawFrame(canvas: Canvas, frame: Frame){
         const imageChunk = new ImageData(imageFlat.data.slice(start*4, end*4), grid.cell.width)
         const lettersChunk = new ImageData(lettersFlat.data.slice(start*4, end*4), grid.cell.width)
         const imageDiffChunk = new ImageDiff(imageDiffFlat.slice(start, end).buffer, grid.cell.width)
-        const result = await worker.calc(originalChunk, imageChunk, lettersChunk, imageDiffChunk, length, grid.cell.length, bitmaps, animation, newImage=>{
+        const result = await worker.calc(originalChunk, imageChunk, lettersChunk, imageDiffChunk, length, grid.cell.length, bitmaps, palette, animation, newImage=>{
           imageFlat.data.set(newImage.data, start*4)
           unflattenImageTo(image, imageFlat, grid)
           canvas.context.putImageData(image, 0, 0)
@@ -178,17 +203,7 @@ async function drawFrame(canvas: Canvas, frame: Frame){
     unflattenImageTo(image, imageFlat, grid)
     unflattenTo(imageDiff, imageDiffFlat, imageDiff.width, grid)
     canvas.context.putImageData(image, 0, 0)
-    console.timeEnd("layer")
     await new Promise((resolve) => setTimeout(resolve, 0))
-  }
-  console.timeEnd("total")
-  compose(canvas, originalCanvas, "destination-over")
-  const final = canvas.context.getImageData(...canvasDim)
-  while(true){
-    canvas.context.putImageData(original, 0, 0)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    canvas.context.putImageData(final, 0, 0)
-    await new Promise((resolve) => setTimeout(resolve, 500))
   }
 }
 
