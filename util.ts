@@ -284,7 +284,7 @@ export function horizontalBounds(image: ImageData){
   while(left == undefined){
     const alpha = getPixel(image, offset)[3]
     if(alpha != 0){
-      left = offset % image.width - 1
+      left = offset % image.width
     }
     offset = offset + image.width
     if(offset > last){

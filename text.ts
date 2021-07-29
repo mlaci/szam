@@ -147,8 +147,8 @@ export async function getTextImages(alphabet: TextSources, height: number, fontW
   const scaledFontHeight = alignBaseline ? (scaledMetric.maxAscent + scaledMetric.maxDescent) : scaledMetric.maxHeight
   const actualHeight = scaledFontHeight * (1 + alphabet.padding.y)
   const box: Rect = {
-    width: scaledMetric.maxWidth * (1 + alphabet.padding.x(height)),
-    height: height > 30 && height < actualHeight ? height : actualHeight //!!
+    width: Math.floor(scaledMetric.maxWidth * (1 + alphabet.padding.x(height))),
+    height: Math.floor(height > 30 && height < actualHeight ? height : actualHeight) //!!
   }
   const images: ImageData[] = []
   for(let i = 0; i < alphabet.texts.length; i++){
