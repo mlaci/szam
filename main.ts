@@ -124,6 +124,8 @@ async function playFrame(canvas: Canvas, frame: Frame){
 async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
   const { alphabet, animation, backgroundColor } = frame
 
+  console.time("total")
+
   let palette: RGB[]
   if(frame.palette instanceof Array){
     palette = frame.palette
@@ -140,6 +142,7 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
   const imageDiff = new ImageDiff(originalLinear, backgroundColor)
 
   for (let cellHeight of log2Sequence(canvas.height, alphabet.smallestSize)){
+    console.time("layer")
 
     let fontWeight: number
     if("fontWeight" in alphabet){
@@ -200,11 +203,9 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
       canvas.context.putImageData(image, 0, 0)
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
-    unflattenImageTo(image, imageFlat, grid)
-    unflattenTo(imageDiff, imageDiffFlat, imageDiff.width, grid)
-    canvas.context.putImageData(image, 0, 0)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    console.timeEnd("layer")
   }
+  console.timeEnd("total")
 }
 
 const idle = Symbol("idle")
