@@ -21,7 +21,7 @@ import {
   maskColorsFrom
 } from "./bitmap.js"
 
-import { getMedian } from "./geometric-median.js"
+import { centroid, getMedian } from "./geometric-median.js"
 
 const BACKGROUND_COLOR = [255, 255, 255] as const
 
@@ -86,8 +86,8 @@ async function* calc(params: CalcParameters){
       const {offset, bitmaps} = cell
       const bitmap = bitmaps[i]
       const colors = maskColorsFrom(original, offset, bitmap)
-      const medianColor = nonlinearizeColor(getMedian(colors) as RGB)
       if(palette){
+        const medianColor = getMedian(colors) as RGB
         let smallestDistance = Infinity
         let nearestColor: RGB
         for(let color of palette){
@@ -97,9 +97,10 @@ async function* calc(params: CalcParameters){
             nearestColor = color
           }
         }
-        cell.actualColor = nearestColor
+        cell.actualColor = nonlinearizeColor(nearestColor)
       }
       else{
+        const medianColor = nonlinearizeColor(getMedian(colors) as RGB)
         cell.actualColor = medianColor
       }
       drawBitmapTo(letters, offset, bitmap, cell.actualColor)

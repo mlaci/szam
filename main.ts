@@ -13,6 +13,7 @@ import {
 } from "./util.js"
 
 import {
+  linearizeColor,
   linearizeImage,
 } from "./image.js"
 
@@ -71,7 +72,7 @@ const chevyFrame: Frame = {
   title: "Chevy",
   imageSource: "https://upload.wikimedia.org/wikipedia/commons/1/1c/1998_Chevrolet_Corvette_C5_at_Hatfield_Heath_Festival_2017.jpg",
   alphabet: numbers,
-  palette: basicColors.map(colorNameToRGB), //{quantization: 16},
+  palette: [...Array(1)].fill(basicColors.map(colorNameToRGB)).flat().map(linearizeColor), //{quantization: 16},
   backgroundColor: [255, 255, 255] as const,
   animation: true,
   epilogue: {
@@ -124,6 +125,7 @@ async function playFrame(canvas: Canvas, frame: Frame){
 async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
   const { alphabet, animation, backgroundColor } = frame
 
+  console.time("total")
   let palette: RGB[]
   if(frame.palette instanceof Array){
     palette = frame.palette
@@ -140,6 +142,7 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
   const imageDiff = new ImageDiff(originalLinear, backgroundColor)
 
   for (let cellHeight of log2Sequence(canvas.height, alphabet.smallestSize)){
+    console.time("layer")
 
     let fontWeight: number
     if("fontWeight" in alphabet){
@@ -200,11 +203,10 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
       canvas.context.putImageData(image, 0, 0)
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
-    unflattenImageTo(image, imageFlat, grid)
-    unflattenTo(imageDiff, imageDiffFlat, imageDiff.width, grid)
-    canvas.context.putImageData(image, 0, 0)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    unflattenTo(imageDiff, imageDiffFlat, imageDiff.width, grid) //??
+    console.timeEnd("layer")
   }
+  console.timeEnd("total")
 }
 
 const idle = Symbol("idle")

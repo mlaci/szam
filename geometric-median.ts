@@ -7,7 +7,7 @@ type Vec3 = readonly [number, number, number]
  * @param vectors - The vectors to be processed.
  * @returns The vector of the center.
  */
-function centroid(vectors: Vec3[]):  Vec3 {
+export function centroid(vectors: Vec3[]):  Vec3 {
   var sum: Vec3 = [0, 0, 0] as const
   for(const vector of vectors){
     sum = [
