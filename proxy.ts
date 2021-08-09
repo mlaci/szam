@@ -1,6 +1,5 @@
 import type { Bitmap } from "./bitmap.js"
-import type { RGB } from "./image.js"
-import { ImageDiff } from "./util.js"
+import type { RGB, Image, ImageDiff } from "./image.js"
 
 function postMessage(target: Worker, name: string, message: any){
   const id = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(16)
@@ -39,9 +38,9 @@ export class CalcWorker extends Worker {
     super("./worker.js", {type: "module"})
   }
   async calc(
-    original: ImageData, 
-    image: ImageData, 
-    letters: ImageData, 
+    original: Image, 
+    image: Image, 
+    letters: Image, 
     imageDiff: ImageDiff,
     gridlength: number, 
     cellLength: number, 
@@ -72,7 +71,7 @@ export class CalcWorker extends Worker {
       }
     }
     nextFrame()
-    const message = {original, image, letters, imageDiff, gridlength, cellLength, bitmaps, palette, animation}
-    return generatorPostMessage(this, "calc", message, next)
+    const message = [original, image, letters, imageDiff, gridlength, cellLength, bitmaps, palette, animation]
+    return generatorPostMessage(this, "calc", message, next) as Promise<{imageFlat: ImageData, imageDiffFlat: ImageDiff}>
   }
 }

@@ -5,7 +5,6 @@ import {
   sliceEvenly,
   ease,
   createCanvasFrom,
-  ImageDiff,
   log2Sequence,
   compose,
   blobToImageData,
@@ -15,6 +14,8 @@ import {
 import {
   linearizeColor,
   linearizeImage,
+  ImageDiff,
+  RGBAImage
 } from "./image.js"
 
 import {
@@ -72,7 +73,7 @@ const chevyFrame: Frame = {
   title: "Chevy",
   imageSource: "https://upload.wikimedia.org/wikipedia/commons/1/1c/1998_Chevrolet_Corvette_C5_at_Hatfield_Heath_Festival_2017.jpg",
   alphabet: numbers,
-  palette: [...Array(1)].fill(basicColors.map(colorNameToRGB)).flat().map(linearizeColor), //{quantization: 16},
+  //palette: [...Array(1)].fill(basicColors.map(colorNameToRGB)).flat().map(linearizeColor), //{quantization: 16},
   backgroundColor: [255, 255, 255] as const,
   animation: true,
   epilogue: {
@@ -139,7 +140,7 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
   canvas.height = original.height
   
   const image = new ImageData(canvas.width, canvas.height)
-  const imageDiff = new ImageDiff(originalLinear, backgroundColor)
+  const imageDiff = new ImageDiff(new RGBAImage(originalLinear), backgroundColor)
 
   for (let cellHeight of log2Sequence(canvas.height, alphabet.smallestSize)){
     console.time("layer")
@@ -176,19 +177,19 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
 
     const originalFlat = flattenImage(originalLinear, grid)
     const imageFlat = flattenImage(image, grid)
-    const imageDiffFlat = new ImageDiff(flatten(imageDiff, imageDiff.width, grid).buffer, grid.cell.width)
+    const imageDiffFlat = new ImageDiff(flatten(imageDiff.data, imageDiff.width, grid).buffer, grid.cell.width)
     const lettersFlat = flattenImage(image, grid)
 
-    const jobs = []
+    const jobs: ((worker: CalcWorker) => Promise<{result: {imageFlat: ImageData, imageDiffFlat: ImageDiff}, start: number}>)[] = []
     for(let {start, length} of sliceEvenly({start: 0, length: grid.length}, threads)){
       jobs.push(async (worker: CalcWorker)=>{
         start = start * grid.cell.length
         const end = start + length * grid.cell.length
-        const originalChunk = new ImageData(originalFlat.data.slice(start*4, end*4), grid.cell.width)
-        const imageChunk = new ImageData(imageFlat.data.slice(start*4, end*4), grid.cell.width)
-        const lettersChunk = new ImageData(lettersFlat.data.slice(start*4, end*4), grid.cell.width)
-        const imageDiffChunk = new ImageDiff(imageDiffFlat.slice(start, end).buffer, grid.cell.width)
-        const result = await worker.calc(originalChunk, imageChunk, lettersChunk, imageDiffChunk, length, grid.cell.length, bitmaps, palette, animation, newImage=>{
+        const originalChunk = new RGBAImage(originalFlat.data.slice(start*4, end*4), grid.cell.width)
+        const imageChunk = new RGBAImage(imageFlat.data.slice(start*4, end*4), grid.cell.width)
+        const lettersChunk = new RGBAImage(lettersFlat.data.slice(start*4, end*4), grid.cell.width)
+        const imageDiffChunk = new ImageDiff(imageDiffFlat.data.slice(start, end).buffer, grid.cell.width)
+        const result = await worker.calc(originalChunk, imageChunk, lettersChunk, imageDiffChunk, length, grid.cell.length, bitmaps, palette, animation, (newImage: ImageData)=>{
           imageFlat.data.set(newImage.data, start*4)
           unflattenImageTo(image, imageFlat, grid)
           canvas.context.putImageData(image, 0, 0)
@@ -198,12 +199,12 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
     }
     for await (const {result, start} of doParallel(workers, jobs)){
       imageFlat.data.set(result.image.data, start*4)
-      imageDiffFlat.set(result.imageDiff, start)
+      imageDiffFlat.data.set(result.imageDiff.data, start)
       unflattenImageTo(image, imageFlat, grid)
       canvas.context.putImageData(image, 0, 0)
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
-    unflattenTo(imageDiff, imageDiffFlat, imageDiff.width, grid) //??
+    unflattenTo(imageDiff.data, imageDiffFlat.data, imageDiff.width, grid) //??
     console.timeEnd("layer")
   }
   console.timeEnd("total")

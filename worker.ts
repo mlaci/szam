@@ -1,22 +1,20 @@
-import type { RGB } from "./image.js"
-import type { Bitmap, BitmapKind } from "./bitmap.js"
+import type { RGB, Image } from "./image.js"
+import type { Bitmap } from "./bitmap.js"
 import {
-  getPixel,
-  ImageDiff,
-  getImageDiffValue,
-  setImageDiffValue,
-  shuffle
+  shuffle,
+  fromClone
 } from "./util.js"
 
 import {
   linearizeColor,
   nonlinearizeColor,
   blendTo,
-  colorDistance
+  colorDistance,
+  ImageDiff,
+  RGBAImage
 } from "./image.js"
 
 import {
-  createBitmapFormClone,
   drawBitmapTo,
   maskColorsFrom
 } from "./bitmap.js"
@@ -25,42 +23,42 @@ import { centroid, getMedian } from "./geometric-median.js"
 
 const BACKGROUND_COLOR = [255, 255, 255] as const
 
-function getPenalty(original: ImageData, image: ImageData, imageDiff: ImageDiff, cellOffset: number, bitmap: Bitmap): number {
+function getPenalty(original: Image, image: Image, imageDiff: ImageDiff, cellOffset: number, bitmap: Bitmap): number {
   let penalty = 0
   for(let offset = 0; offset < bitmap.length; offset++){
     const pixelOffset = cellOffset + offset
-    const originalColor = getPixel(original, pixelOffset)
-    const imageColor = blendTo(linearizeColor(getPixel(image, pixelOffset)), BACKGROUND_COLOR)
-    const prevDiff = getImageDiffValue(imageDiff, pixelOffset)
+    const originalColor = original.getPixel(pixelOffset)
+    const imageColor = blendTo(linearizeColor(image.getPixel(pixelOffset)), BACKGROUND_COLOR)
+    const prevDiff = imageDiff.getDiff(pixelOffset)
     penalty = penalty - prevDiff + colorDistance(originalColor, imageColor)
   }
   return penalty
 }
 
-function setDiff(image: ImageData, original: ImageData, imageDiff: ImageDiff, cellOffset: number, bitmap: Bitmap): void {
+function setDiff(image: Image, original: Image, imageDiff: ImageDiff, cellOffset: number, bitmap: Bitmap): void {
   for(let {offset} of bitmap){
     const pixelOffset = cellOffset + offset
-    const originalColor = getPixel(original, pixelOffset)
-    const color = blendTo(linearizeColor(getPixel(image, pixelOffset)), BACKGROUND_COLOR)
-    setImageDiffValue(imageDiff, pixelOffset, colorDistance(originalColor, color))
+    const originalColor = original.getPixel(pixelOffset)
+    const color = blendTo(linearizeColor(image.getPixel(pixelOffset)), BACKGROUND_COLOR)
+    imageDiff.setDiff(pixelOffset, colorDistance(originalColor, color))
   }
 }
 
-interface CalcParameters {
-  original: ImageData,
-  image: ImageData,
-  letters: ImageData,
+type CalcParameters = [
+  original: RGBAImage,
+  image: RGBAImage,
+  letters: RGBAImage,
   imageDiff: ImageDiff,
   gridlength: number,
   cellLength: number,
-  bitmaps: {kind: BitmapKind}[],
+  bitmaps: Bitmap[],
   palette: RGB[],
   animation: boolean
-}
+]
 
-async function* calc(params: CalcParameters){
-  const {original, image, letters: lettersOriginal, imageDiff, gridlength, cellLength, bitmaps: bitmapClones, palette, animation} = params
-  const bitmaps = bitmapClones.map(clone=>createBitmapFormClone(clone))
+async function* calc(...args: CalcParameters){
+  const [original, image, lettersOriginal, imageDiff, gridlength, cellLength, bitmapClones, palette, animation] = args.map(fromClone) as CalcParameters
+  const bitmaps = bitmapClones.map(fromClone)
   const cells: {
     offset: number,
     bitmaps: Bitmap[],
@@ -81,7 +79,7 @@ async function* calc(params: CalcParameters){
     })
   }
   for(let i = 0; i < bitmaps.length; i++){
-    const letters = new ImageData(lettersOriginal.data.slice(0), lettersOriginal.width, lettersOriginal.height)
+    const letters = new RGBAImage(lettersOriginal.imageData.data.slice(0), lettersOriginal.width)
     for(let cell of cells){
       const {offset, bitmaps} = cell
       const bitmap = bitmaps[i]
@@ -107,7 +105,7 @@ async function* calc(params: CalcParameters){
     }
 
     if(animation){
-      yield letters
+      yield letters.imageData
     }
 
     for(let cell of cells){
@@ -126,7 +124,7 @@ async function* calc(params: CalcParameters){
     drawBitmapTo(image, offset, bitmap, color)
     setDiff(image, original, imageDiff, offset, bitmap)
   }
-  return {image, imageDiff}
+  return {image: image.imageData, imageDiff}
 }
 
 const functions = {
@@ -135,7 +133,7 @@ const functions = {
 
 globalThis.addEventListener("message", async ({data: {name, id, message}})=>{
   if(functions[name].constructor.name == "AsyncGeneratorFunction"){
-    const generator: AsyncGenerator = functions[name](message)
+    const generator: AsyncGenerator = functions[name](...message)
     var done = false
     while(!done){
       const result = await generator.next()

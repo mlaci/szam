@@ -1,6 +1,7 @@
 import type { Rect } from "./types.js"
-import type { RGB, RGBA } from "./image.js"
-import { colorDistance } from "./image.js"
+import type { RGB, RGBA, Image } from "./image.js"
+import { imageKinds } from "./image.js"
+import { bitmapKinds } from "./bitmap.js"
 
 /**
  * Resizes a rectangle to fit into a container rectangle by maintaining the rectangle original aspect ratio.
@@ -99,91 +100,6 @@ export function createCanvasFrom(image: ImageData): Canvas {
 }
 
 /**
- * Returns one pixel of an image.
- * @param image - Source image.
- * @param offset - Location of the pixel.
- * @returns Color of the pixel.
- */
-export function getPixel(image: ImageData, offset: number): RGBA {
-  offset = offset * 4
-  const r = image.data[offset + 0]
-  const g = image.data[offset + 1]
-  const b = image.data[offset + 2]
-  const alpha = image.data[offset + 3]
-  return [r, g, b, alpha]
-}
-
-/**
- * Sets one pixel of an image.
- * @param image - Image to change.
- * @param offset - Location of the pixel to set.
- * @param color - Color of the pixel to set.
- */
-export function setPixel(image: ImageData, offset: number, color: RGBA): void {
-  offset = offset * 4
-  image.data[offset + 0] = color[0]
-  image.data[offset + 1] = color[1]
-  image.data[offset + 2] = color[2]
-  image.data[offset + 3] = color[3]
-}
-
-export class ImageDiff extends Float32Array {
-  width: number
-  height: number
-  constructor(buffer: ArrayBuffer, width: number)
-  constructor(width: number, height: number)
-  constructor(image: ImageData, backgroundColor: RGB)
-  constructor(...args: [number, number] | [ArrayBuffer, number] | [ImageData, RGB]){
-    if(typeof args[0] == "number"){
-      const [width, height] = args as [number, number]
-      super(width * height)
-      this.width = width
-      this.height = height
-    }
-    else if(args[0] instanceof ArrayBuffer){
-      const [buffer, width] = args as [ArrayBuffer, number]
-      super(buffer)
-      this.width = width
-      this.height = buffer.byteLength / 4 / width
-    }
-    else{
-      const [image, backgroundColor] = args as [ImageData, RGB]
-      const length = image.width * image.height
-      super(length)
-      this.width = image.width
-      this.height = image.height
-      for(let offset = 0; offset < length; offset++){
-        const originalColor = getPixel(image, offset)
-        setImageDiffValue(this, offset, colorDistance(originalColor, backgroundColor))
-      }
-    }
-  }
-  static get [Symbol.species](){
-    return Float32Array
-  }
-}
-
-/**
- * Returns one element of a buffer.
- * @param buffer - Source buffer.
- * @param offset - Location of the element.
- * @returns Value of the buffer.
- */
-export function getImageDiffValue(buffer: ImageDiff, offset: number){
-  return buffer[offset]
-}
-
-/**
- * Sets one element of a buffer.
- * @param buffer - Buffer to change.
- * @param offset - Location of the element to set.
- * @param value - Value of the element to set.
- */
-export function setImageDiffValue(buffer: ImageDiff, offset: number, value: number): void {
-  buffer[offset] = value
-}
-
-/**
  * Creates a sequence between two number by doubling or halving (log2) the next number in the sequence.
  * The difference between the first and last numbers sequence smoothed into each other by an ease in/out curve.
  * @param from - Number from the sequence starts.
@@ -277,12 +193,12 @@ export function numberToColor(colorNumber: number): RGBA {
  * @param image - An image to process.
  * @returns Left and right bound.
  */
-export function horizontalBounds(image: ImageData){
+export function horizontalBounds(image: Image){
   const last = image.width*image.height-1
   let left: number
   let offset = 0
   while(left == undefined){
-    const alpha = getPixel(image, offset)[3]
+    const alpha = image.getPixel(offset)[3]
     if(alpha != 0){
       left = offset % image.width
     }
@@ -297,7 +213,7 @@ export function horizontalBounds(image: ImageData){
   let right: number
   offset = last
   while(right == undefined){
-    const alpha = getPixel(image, offset)[3]
+    const alpha = image.getPixel(offset)[3]
     if(alpha != 0){
       right = offset % image.width + 1
     }
@@ -317,12 +233,12 @@ export function horizontalBounds(image: ImageData){
  * @param image - An image to process.
  * @returns Top and bottom bound.
  */
-export function verticalBounds(image: ImageData){
+export function verticalBounds(image: Image){
   const last = image.width*image.height-1
   let top: number
   let offset = 0
   while(top == undefined){
-    const alpha = getPixel(image, offset)[3]
+    const alpha = image.getPixel(offset)[3]
     if(alpha != 0){
       top = Math.floor(offset / image.width)
     }
@@ -334,7 +250,7 @@ export function verticalBounds(image: ImageData){
   let bottom: number
   offset = last
   while(bottom == undefined){
-    const alpha = getPixel(image, offset)[3]
+    const alpha = image.getPixel(offset)[3]
     if(alpha != 0){
       bottom = Math.ceil(offset / image.width)
     }
@@ -504,4 +420,28 @@ export type ColorName = keyof typeof namedColors
 
 export function colorNameToRGB(colorName: ColorName): RGB {
   return namedColors[colorName]
+}
+
+export interface CloneObject {
+  readonly kind: string
+}
+
+const kinds = {...bitmapKinds, ...imageKinds}
+type Kinds = typeof kinds
+
+export type CloneObjectTypes<T> = T extends {readonly kind: infer K} ? K extends keyof Kinds ? InstanceType<Kinds[K]> : never : never
+
+/**
+ * Creates a Bitmap subclass instance form a structurally cloned bitmap.
+ * @param bitmapObject - A Structurally cloned bitmap.
+ * @returns Bitmap subclass instance.
+ */
+export function fromClone<T>(clone: T | CloneObjectTypes<T>){
+  const kind = (clone as CloneObject)?.kind
+  if(kinds[kind]){
+      return Object.setPrototypeOf(clone, kinds[kind].prototype) as CloneObjectTypes<T>
+  }
+  else{
+    return clone
+  }
 }

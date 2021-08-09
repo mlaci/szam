@@ -1,15 +1,16 @@
-import type { RGB, RGBA } from "./image.js"
+import type { RGB, RGBA, Image } from "./image.js"
 import type { Tree } from "./huffman.js"
+import type { CloneObject } from "./util.js"
 import { alphaBlendTo, medianCut } from "./image.js"
-import { getPixel, setPixel, colorToNumber, numberToColor } from "./util.js"
+import { colorToNumber, numberToColor } from "./util.js"
 import { compress, readBitStream, repeatSymbol } from "./huffman.js"
 import { getTextImages } from "./text.js"
 import type { Alphabet } from "./types.js"
 
-export type BitmapKind = keyof typeof bitmapKinds
+type BitmapKind = keyof typeof bitmapKinds
 
 /** Class represents a generic bitmap. */
-export abstract class Bitmap {
+export abstract class Bitmap implements CloneObject {
   /** Type of the subclass */
   readonly kind: BitmapKind
   width: number
@@ -21,11 +22,11 @@ export abstract class Bitmap {
    * @param image - An image.
    * @param kind - Subclass kind.
    */
-  constructor(image: ImageData, kind: BitmapKind){
+  constructor(image: Image, kind: BitmapKind){
     this.kind = kind
     this.width = image.width
     this.height = image.height
-    this.length = image.width * image.height
+    this.length = image.length
   }
   /**
    * Iterator of the Bitmap.
@@ -41,18 +42,17 @@ export abstract class Bitmap {
  */
 class AlphaBitmap extends Bitmap {
   static readonly kind = "AlphaBitmap"
-  static readonly value = 5
   data: DataView
   /**
    * Creates a AlphaBitmap from an image.
    * @param image - An image from the bitmap created.
    */
-  constructor(image: ImageData){
+  constructor(image: Image){
     super(image, AlphaBitmap.kind)
     this.data = new DataView(new ArrayBuffer(this.length * 5))
     var i = 0
     for(let offset = 0; offset < this.length; offset++){
-      const color = getPixel(image, offset)
+      const color = image.getPixel(offset)
       const alpha = color[3]
       if(alpha != 0){
         this.data.setUint32(i * 5 + 0, offset)
@@ -86,12 +86,12 @@ class ColorBitmap extends Bitmap {
    * Creates a ColorBitmap from an image.
    * @param image - An image from the bitmap created.
    */
-  constructor(image: ImageData){
+  constructor(image: Image){
     super(image, ColorBitmap.kind)
     this.data = new DataView(new ArrayBuffer(this.length * 8))
     var i = 0
     for(let offset = 0; offset < this.length; offset++){
-      const color = getPixel(image, offset)
+      const color = image.getPixel(offset)
       const alpha = color[3]
       if(alpha != 0){
         this.data.setUint32(i * 8, offset)
@@ -146,7 +146,7 @@ export class PaletteBitmap extends Bitmap{
    * Creates a PaletteBitmap from an image.
    * @param image - An image from the bitmap created.
    */
-  constructor(image: ImageData){
+  constructor(image: Image){
     super(image, PaletteBitmap.kind)
     this.data = new DataView(new ArrayBuffer(this.length * 4))
     const colors = [{value: colorToNumber([0, 0, 0, 0]), count: 0}]
@@ -155,7 +155,7 @@ export class PaletteBitmap extends Bitmap{
     var length = 0
     var byteLength = 0
     for(let offset = 0; offset < this.length; offset++){
-      const color = colorToNumber(getPixel(image, offset))
+      const color = colorToNumber(image.getPixel(offset))
       length++
       if(prevColor != undefined && prevColor != color){
         writeTo(colors, prevColor, this.data, byteLength)
@@ -261,7 +261,7 @@ export class CompressedBitmap extends Bitmap {
    * Creates a CompressedBitmap from an image.
    * @param image - An image from the bitmap created.
    */
-  constructor(image: ImageData){
+  constructor(image: Image){
     super(image, CompressedBitmap.kind)
     const bitmap = new PaletteBitmap(image)
     bitmap.reduceColors(16) //!!!
@@ -301,27 +301,17 @@ export class CompressedBitmap extends Bitmap {
 }
 
 /** Object for mapping bitmap names (kinds) to bitmap class. */
-const bitmapKinds: {
+export const bitmapKinds: {
   [AlphaBitmap.kind]: typeof AlphaBitmap
   [ColorBitmap.kind]: typeof ColorBitmap
   [PaletteBitmap.kind]: typeof PaletteBitmap
   [CompressedBitmap.kind]: typeof CompressedBitmap
 } 
 = {
-  "AlphaBitmap": AlphaBitmap,
-  "ColorBitmap": ColorBitmap,
-  "PaletteBitmap": PaletteBitmap,
-  "CompressedBitmap": CompressedBitmap
-}
-
-/**
- * Creates a Bitmap subclass instance form a structurally cloned bitmap.
- * @param bitmapObject - A Structurally cloned bitmap.
- * @returns Bitmap subclass instance.
- */
-export function createBitmapFormClone(bitmapObject: {kind: BitmapKind}): Bitmap {
-  Object.setPrototypeOf(bitmapObject, bitmapKinds[bitmapObject.kind].prototype)
-  return bitmapObject as Bitmap
+  AlphaBitmap,
+  ColorBitmap,
+  PaletteBitmap,
+  CompressedBitmap
 }
 
 const MASK_LIGHT = 0.75
@@ -357,23 +347,23 @@ export async function getBitmaps(
  * @param bitmap - Bitmap to draw.
  * @param bitmapColor - The bitmap color.
  */
-export function drawBitmapTo(image: ImageData, cellOffset: number, bitmap: Bitmap, bitmapColor?: RGB): void{
+export function drawBitmapTo(image: Image, cellOffset: number, bitmap: Bitmap, bitmapColor?: RGB): void{
   for(var {offset, color} of bitmap){
     const pixelOffset = cellOffset + offset
     const alpha = color[3]
     if(alpha != 0 && alpha != 255){
-      const imageColor = getPixel(image, pixelOffset)
+      const imageColor = image.getPixel(pixelOffset)
       if(bitmapColor != undefined){
         color = [...bitmapColor, alpha] as const
       }
       const newColor = alphaBlendTo(color, imageColor)
-      setPixel(image, pixelOffset, newColor)
+      image.setPixel(pixelOffset, newColor)
     }
     else if(alpha == 255){
       if(bitmapColor != undefined){
         color = [...bitmapColor, alpha] as const
       }
-      setPixel(image, pixelOffset, color)
+      image.setPixel(pixelOffset, color)
     }
   }
 }
@@ -385,11 +375,11 @@ export function drawBitmapTo(image: ImageData, cellOffset: number, bitmap: Bitma
  * @param bitmap - A bitmap.
  * @returns An array of colors.
  */
-export function maskColorsFrom(image: ImageData, cellOffset: number, bitmap: Bitmap){
+export function maskColorsFrom(image: Image, cellOffset: number, bitmap: Bitmap){
   const colors: RGB[] = []
   for(const {offset} of bitmap){
     const pixelOffset = cellOffset + offset
-    const pixel = getPixel(image, pixelOffset)
+    const pixel = image.getPixel(pixelOffset)
     const imageColor: RGB = [pixel[0], pixel[1], pixel[2]]
     colors.push(imageColor)
   }

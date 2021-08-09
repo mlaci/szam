@@ -1,3 +1,5 @@
+import { CloneObject, colorToNumber, numberToColor } from "./util.js"
+
 const COLOR_VALUE_MAX = 255
 export type RGB = readonly [red: number, green: number, blue: number]
 export type RGBA = readonly [red: number, green: number, blue: number, alpha: number]
@@ -158,11 +160,11 @@ export function colorDistance(color1: RGB | RGBA, color2: RGB | RGBA){
   }
 }
 
-type Vector<T, Dim> = readonly T[] & {readonly length: Dim}
-interface VectorObject<Dim extends number> {
-  value: Vector<number, Dim>,
+type Counted<T> = {
+  value: T, 
   count: number
 }
+type Vector<T, Dim extends number> = readonly T[] & {readonly length: Dim}
 /**
  * Groups objects to `n` arrays
  * by minimizing the `object.value` vectors distance between each dimension in a group
@@ -172,14 +174,14 @@ interface VectorObject<Dim extends number> {
  * @param n - The group size.
  * @returns Array of `n` groups of objects.
  */
-export function medianCut<Dim extends number>(objects: VectorObject<Dim>[], n: number){
+export function medianCut<Dim extends number>(objects: Counted<Vector<number, Dim>>[], n: number){
   if(objects.length == 0){
     return []
   }
   objects = [...objects]
   const dimensions = [...Array(objects[0].value.length)].map((_,i)=>i)
   type Range = {min: number, max: number}
-  function getRanges(objects: VectorObject<Dim>[]): Range[] {
+  function getRanges(objects: Counted<Vector<number, Dim>>[]): Range[] {
     const ranges = dimensions.map(()=>({min: Infinity, max: -Infinity}))
     for(const {value} of objects){
       for(const dim of dimensions){
@@ -189,7 +191,7 @@ export function medianCut<Dim extends number>(objects: VectorObject<Dim>[], n: n
     }
     return ranges
   }
-  type Bucket = {objects: VectorObject<Dim>[], ranges: Range[]}
+  type Bucket = {objects: Counted<Vector<number, Dim>>[], ranges: Range[]}
   const buckets: Bucket[] = [{objects, ranges: getRanges(objects)}]
   while(buckets.length<n && buckets.some(({objects})=>objects.length>1)){
     var widestRange = 0
@@ -226,4 +228,242 @@ export function medianCut<Dim extends number>(objects: VectorObject<Dim>[], n: n
     buckets.push(lower)
   }
   return buckets.map(({objects})=>objects)
+}
+
+/**
+ * Returns one pixel of an image.
+ * @param image - Source image.
+ * @param offset - Location of the pixel.
+ * @returns Color of the pixel.
+ */
+
+/**
+ * Sets one pixel of an image.
+ * @param image - Image to change.
+ * @param offset - Location of the pixel to set.
+ * @param color - Color of the pixel to set.
+ */
+
+export class ImageDiff implements CloneObject {
+  static readonly kind = "ImageDiff"
+  readonly kind: "ImageDiff"
+  data: Float32Array
+  width: number
+  height: number
+  length: number
+  constructor(buffer: ArrayBuffer, width: number)
+  constructor(width: number, height: number)
+  constructor(image: Image, backgroundColor: RGB)
+  constructor(...args: [number, number] | [ArrayBuffer, number] | [Image, RGB]){
+    if(typeof args[0] == "number"){
+      const [width, height] = args as [number, number]
+      this.data = new Float32Array(width * height)
+      this.width = width
+      this.height = height
+      
+    }
+    else if(args[0] instanceof ArrayBuffer){
+      const [buffer, width] = args as [ArrayBuffer, number]
+      this.data = new Float32Array(buffer)
+      this.width = width
+      this.height = buffer.byteLength / 4 / width
+    }
+    else{
+      const [image, backgroundColor] = args as [Image, RGB]
+      const length = image.width * image.height
+      this.data = new Float32Array(length)
+      this.width = image.width
+      this.height = image.height
+      for(let offset = 0; offset < length; offset++){
+        const originalColor = image.getPixel(offset)
+        this[offset] = colorDistance(originalColor, backgroundColor)
+      }
+    }
+    this.length = this.width * this.height
+    this.kind = ImageDiff.kind
+  }
+  getDiff(offset: number): number {
+    return this.data[offset]
+  }
+  setDiff(offset: number, diff: number): void {
+    this.data[offset] = diff
+  }
+}
+
+type ImageKind = keyof typeof imageKinds
+
+/**
+ * Returns one element of a buffer.
+ * @param buffer - Source buffer.
+ * @param offset - Location of the element.
+ * @returns Value of the buffer.
+ */
+
+/**
+ * Sets one element of a buffer.
+ * @param buffer - Buffer to change.
+ * @param offset - Location of the element to set.
+ * @param value - Value of the element to set.
+ */
+
+export interface Image extends CloneObject {
+  readonly kind: ImageKind
+  width: number
+  height: number
+  length: number
+  getPixel(offset: number): RGBA
+  setPixel?(offset: number, color: RGBA): void
+}
+
+export class RGBAImage implements Image {
+  static readonly kind = "RGBAImage"
+  readonly kind: typeof RGBAImage.kind
+  imageData: ImageData
+  width: number
+  height: number
+  length: number
+  constructor(width: number, height: number)
+  constructor(data: Uint8ClampedArray, sw: number)
+  constructor(image: ImageData)
+  constructor(...args: [number, number] | [Uint8ClampedArray, number] | [ImageData]){
+    if(typeof args[0] == "number"){
+      const [width, height] = args
+      this.imageData = new ImageData(width, height)
+    }
+    else if(args[0] instanceof Uint8ClampedArray){
+      const [data, sw] = args
+      this.imageData = new ImageData(data, sw)
+    }
+    else{
+      const [image] = args
+      this.imageData = new ImageData(image.data, image.width)
+    }
+    this.width = this.imageData.width
+    this.height = this.imageData.width
+    this.length = this.width * this.height
+    this.kind = RGBAImage.kind
+  }
+  getPixel(offset: number): RGBA {
+    offset = offset * 4
+    const red = this.imageData.data[offset + 0]
+    const green = this.imageData.data[offset + 1]
+    const blue = this.imageData.data[offset + 2]
+    const alpha = this.imageData.data[offset + 3]
+    return [red, green, blue, alpha]
+  }
+  setPixel(offset: number, color: RGBA): void {
+    offset = offset * 4
+    this.imageData.data[offset + 0] = color[0]
+    this.imageData.data[offset + 1] = color[1]
+    this.imageData.data[offset + 2] = color[2]
+    this.imageData.data[offset + 3] = color[3]
+  }
+  static get [Symbol.species](){
+    return ImageData
+  }
+}
+
+function countColors(image: Image): Counted<RGBA>[]{
+  const colorNumbers: Counted<number>[] = []
+  for(let offset = 0; offset < image.length; offset++){
+    const colorNumber = colorToNumber(image.getPixel(offset))
+    const index = colorNumbers.findIndex(({value})=>value == colorNumber)
+    if(index == -1){
+      colorNumbers.push({value: colorNumber, count: 1})
+    }
+    else{
+      colorNumbers[index].count++
+    }
+  }
+  return colorNumbers.map(({value, count})=>({value: numberToColor(value), count}))
+}
+
+function avgColor(colors: RGBA[]): RGBA {
+  var avg = [0, 0, 0, 0]
+  for(const color of colors){
+    avg = avg.map((value, i)=>value+color[i])
+  }
+  avg = avg.map(value=>Math.round(value/colors.length))
+  return avg as unknown as RGBA
+}
+
+function nearestColorIndex(color: RGBA, palette: RGBA[]): number {
+  let distance = Infinity
+  let nearestIndex = 0
+  for(let index = 0; index < palette.length; index++){
+    const dist = colorDistance(color, palette[index])
+    if(dist < distance){
+      distance = dist
+      nearestIndex = index
+    }
+  }
+  return nearestIndex
+}
+
+function addColor(color1: RGBA, color2: RGBA): RGBA {
+  return [
+    color1[0] + color2[0],
+    color1[1] + color2[1],
+    color1[2] + color2[2],
+    color1[3] + color2[3]
+  ] as const
+}
+
+export class PaletteImage implements Image {
+  static readonly kind = "PaletteImage"
+  readonly kind = PaletteImage.kind
+  width: number
+  height: number
+  length: number
+  palette: RGBA[]
+  data: Uint8Array
+  constructor(image: RGBAImage, paletteSize: number = 256){
+    this.width = image.width
+    this.height = image.height
+    this.length = image.length
+    this.data = new Uint8Array(this.length)
+    const colors: Counted<RGBA>[] = countColors(image)
+    const buckets = medianCut(colors, paletteSize) as unknown as Counted<RGBA>[][]
+    this.palette = buckets.map(bucket=>avgColor(bucket.map(({value})=>value)))
+    for(let offset = 0; offset < image.length; offset++){
+      const color = image.getPixel(offset)
+      const index = nearestColorIndex(color, this.palette)
+      this.data[offset] = index
+      const diff = color.map((v, i)=>this.palette[index][i] - v) //!!
+      const offsets = []
+      const x = offset % image.width
+      const y = Math.floor(offset / image.width)
+      if(x != image.width-1){
+        offsets.push({offset: offset + 1, factor: 7/16})
+      }
+      if(y != image.height-1){
+        if(x != 0){
+          offsets.push({offset: offset + image.width - 1, factor: 3/16})
+        }
+        offsets.push({offset: offset + image.width + 0, factor: 5/16})
+        if(x != image.width-1){
+          offsets.push({offset: offset + image.width + 1, factor: 1/16})
+        }
+      }
+      for(let {offset, factor} of offsets){
+        const color = image.getPixel(offset)
+        const error = diff.map(v=>v*factor) as unknown as RGBA
+        image.setPixel(offset, addColor(color, error))
+      }
+    }
+  }
+  getPixel(offset: number): RGBA {
+    const index = this.data[offset]
+    return this.palette[index]
+  }
+}
+
+export const imageKinds: {
+  [ImageDiff.kind]: typeof ImageDiff
+  [RGBAImage.kind]: typeof RGBAImage
+  [PaletteImage.kind]: typeof PaletteImage
+} = {
+  ImageDiff,
+  RGBAImage,
+  PaletteImage
 }

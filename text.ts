@@ -1,6 +1,7 @@
-import type { Color, TextSources } from "./types.js"
+import type { TextSources } from "./types.js"
 import type { Rect } from "./types.js"
-import type { RGB } from "./image.js" 
+import type { Image, RGB } from "./image.js" 
+import { RGBAImage } from "./image.js"
 import { createCanvas, verticalBounds, horizontalBounds } from "./util.js"
 
 let xmlSerializer: XMLSerializer
@@ -12,7 +13,7 @@ function textImageFromCanvas(text: string, box: Rect, left: number, baseline: nu
   canvas.context.textBaseline = "alphabetic"
   canvas.context.font = font.toString()
   canvas.context.fillText(text, left, baseline)
-  return canvas.context.getImageData(0, 0, canvas.width, canvas.height)
+  return new RGBAImage(canvas.context.getImageData(0, 0, canvas.width, canvas.height))
 }
 
 async function textImageFromSvg(text: string, box: Rect, left: number, baseline: number, font: FontProp, textLength: number, color?: RGB){
@@ -42,7 +43,7 @@ async function textImageFromSvg(text: string, box: Rect, left: number, baseline:
   canvas.height = box.height
   canvas.context.drawImage(img, 0, 0, box.width, box.height)
   container.innerHTML = ""
-  return canvas.context.getImageData(0, 0, canvas.width, canvas.height)
+  return new RGBAImage(canvas.context.getImageData(0, 0, canvas.width, canvas.height))
 }
 
 export class FontProp {
@@ -151,7 +152,7 @@ export async function getTextImages(alphabet: TextSources, height: number, fontW
     width: Math.floor(scaledMetric.maxWidth * (1 + alphabet.padding.x(height))),
     height: Math.floor(height > 30 && height < actualHeight ? height : actualHeight) //!!
   }
-  const images: ImageData[] = []
+  const images: Image[] = []
   for(let i = 0; i < alphabet.texts.length; i++){
     const letter = alphabet.texts[i]
     const metric = scaledMetric.metrics[i]
