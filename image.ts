@@ -339,7 +339,7 @@ export class RGBAImage implements Image {
       this.imageData = new ImageData(image.data, image.width)
     }
     this.width = this.imageData.width
-    this.height = this.imageData.width
+    this.height = this.imageData.height
     this.length = this.width * this.height
     this.kind = RGBAImage.kind
   }
