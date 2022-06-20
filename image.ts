@@ -99,6 +99,17 @@ export function linearizeImage(image: ImageData){
   return new ImageData(buffer, image.width)
 }
 
+export function nonlinearizeImage(image: ImageData){
+  const buffer = new Uint8ClampedArray(image.data.length)
+  for(let i = 0; i < image.data.byteLength; i = i + 4){
+    buffer[i + 0] = gam_sRGBLookup[image.data[i + 0]]
+    buffer[i + 1] = gam_sRGBLookup[image.data[i + 1]]
+    buffer[i + 2] = gam_sRGBLookup[image.data[i + 2]]
+    buffer[i + 3] = image.data[i + 3]
+  }
+  return new ImageData(buffer, image.width)
+}
+
 /**
  * Blends a color to an other background color.
  * @param color - sRGB color in linear-light form.
@@ -276,7 +287,7 @@ export class ImageDiff implements CloneObject {
       this.height = image.height
       for(let offset = 0; offset < length; offset++){
         const originalColor = image.getPixel(offset)
-        this[offset] = colorDistance(originalColor, backgroundColor)
+        this.data[offset] = colorDistance(originalColor, backgroundColor)
       }
     }
     this.length = this.width * this.height
@@ -336,7 +347,7 @@ export class RGBAImage implements Image {
     }
     else{
       const [image] = args
-      this.imageData = new ImageData(image.data, image.width)
+      this.imageData = new ImageData(image.data.slice(0), image.width)
     }
     this.width = this.imageData.width
     this.height = this.imageData.height
@@ -364,18 +375,19 @@ export class RGBAImage implements Image {
 }
 
 function countColors(image: Image): Counted<RGBA>[]{
-  const colorNumbers: Counted<number>[] = []
+  const colorNumbers = new Map<number, Counted<RGBA>>()
   for(let offset = 0; offset < image.length; offset++){
-    const colorNumber = colorToNumber(image.getPixel(offset))
-    const index = colorNumbers.findIndex(({value})=>value == colorNumber)
-    if(index == -1){
-      colorNumbers.push({value: colorNumber, count: 1})
+    const color = image.getPixel(offset)
+    const colorNumber = colorToNumber(color)
+    const index = colorNumbers.has(colorNumber)
+    if(colorNumbers.has(colorNumber)){
+      colorNumbers.get(colorNumber).count++
     }
     else{
-      colorNumbers[index].count++
+      colorNumbers.set(colorNumber, {value: color, count: 1})
     }
   }
-  return colorNumbers.map(({value, count})=>({value: numberToColor(value), count}))
+  return [...colorNumbers.values()]
 }
 
 function avgColor(colors: RGBA[]): RGBA {
@@ -418,6 +430,7 @@ export class PaletteImage implements Image {
   palette: RGBA[]
   data: Uint8Array
   constructor(image: RGBAImage, paletteSize: number = 256){
+    image = new RGBAImage(image.imageData)
     this.width = image.width
     this.height = image.height
     this.length = image.length
@@ -447,7 +460,7 @@ export class PaletteImage implements Image {
       }
       for(let {offset, factor} of offsets){
         const color = image.getPixel(offset)
-        const error = diff.map(v=>v*factor) as unknown as RGBA
+        const error = diff.map(v=>-v*factor) as unknown as RGBA
         image.setPixel(offset, addColor(color, error))
       }
     }
@@ -455,6 +468,17 @@ export class PaletteImage implements Image {
   getPixel(offset: number): RGBA {
     const index = this.data[offset]
     return this.palette[index]
+  }
+  getImageData(){
+    const image = new ImageData(this.width, this.height)
+    for(let offset = 0; offset < this.length; offset++){
+      const color = this.getPixel(offset)
+      image.data[offset * 4 + 0] = color[0]
+      image.data[offset * 4 + 1] = color[1]
+      image.data[offset * 4 + 2] = color[2]
+      image.data[offset * 4 + 3] = color[3]
+    }
+    return image
   }
 }
 

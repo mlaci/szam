@@ -1,6 +1,7 @@
 import type { Rect, Grid, Texts, Frame} from "./types.js"
 import type { RGB } from "./image.js"
 import type { Canvas, ColorName } from "./util.js"
+import type { CalcData } from "./worker.js"
 import {
   sliceEvenly,
   ease,
@@ -14,8 +15,10 @@ import {
 import {
   linearizeColor,
   linearizeImage,
+  nonlinearizeImage,
   ImageDiff,
-  RGBAImage
+  RGBAImage,
+  PaletteImage
 } from "./image.js"
 
 import {
@@ -30,6 +33,7 @@ import {
 } from "./flatten.js"
 
 import { CalcWorker } from "./proxy.js"
+
 
 const workSansFull = new FontFace("Work Sans", "url(./QGYsz_wNahGAdqQ43Rh_fKDp.woff2) format('woff2')", {
   style: "normal",
@@ -73,7 +77,7 @@ const chevyFrame: Frame = {
   title: "Chevy",
   imageSource: "https://upload.wikimedia.org/wikipedia/commons/1/1c/1998_Chevrolet_Corvette_C5_at_Hatfield_Heath_Festival_2017.jpg",
   alphabet: numbers,
-  //palette: [...Array(1)].fill(basicColors.map(colorNameToRGB)).flat().map(linearizeColor), //{quantization: 16},
+  palette: [...Array(1)].fill(basicColors.map(colorNameToRGB)).flat().map(linearizeColor), //{quantization: 16},
   backgroundColor: [255, 255, 255] as const,
   animation: true,
   epilogue: {
@@ -112,7 +116,12 @@ async function playFrame(canvas: Canvas, frame: Frame){
   const blob = await fetch(imageSource).then(res=>res.blob())
   const original = await blobToImageData(blob, container)
   const originalCanvas = createCanvasFrom(original)
-  await drawImage(canvas, original, frame)
+  canvas.width = original.width
+  canvas.height = original.height
+  //const paletteImage = new PaletteImage(new RGBAImage(original))
+  canvas.context.putImageData(original, 0, 0)
+  /*const originalLinear = linearizeImage(paletteImage.getImageData())
+  await drawImage(canvas, originalLinear, frame)
   compose(canvas, originalCanvas, "destination-over")
   const final = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
   while(true){
@@ -120,10 +129,10 @@ async function playFrame(canvas: Canvas, frame: Frame){
     await new Promise((resolve) => setTimeout(resolve, 500))
     canvas.context.putImageData(final, 0, 0)
     await new Promise((resolve) => setTimeout(resolve, 500))
-  }
+  }*/
 }
 
-async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
+async function drawImage(canvas: Canvas, originalLinear: ImageData, frame: Frame){
   const { alphabet, animation, backgroundColor } = frame
 
   console.time("total")
@@ -134,11 +143,7 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
   else if(frame.palette instanceof Object){
     //TODO quant
   }
-  
-  const originalLinear = linearizeImage(original)
-  canvas.width = original.width
-  canvas.height = original.height
-  
+
   const image = new ImageData(canvas.width, canvas.height)
   const imageDiff = new ImageDiff(new RGBAImage(originalLinear), backgroundColor)
 
@@ -178,22 +183,28 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
     const originalFlat = flattenImage(originalLinear, grid)
     const imageFlat = flattenImage(image, grid)
     const imageDiffFlat = new ImageDiff(flatten(imageDiff.data, imageDiff.width, grid).buffer, grid.cell.width)
-    const lettersFlat = flattenImage(image, grid)
 
-    const jobs: ((worker: CalcWorker) => Promise<{result: {imageFlat: ImageData, imageDiffFlat: ImageDiff}, start: number}>)[] = []
+    const jobs: ((worker: CalcWorker) => Promise<{result: {image: ImageData, imageDiff: ImageDiff}, start: number}>)[] = []
     for(let {start, length} of sliceEvenly({start: 0, length: grid.length}, threads)){
       jobs.push(async (worker: CalcWorker)=>{
         start = start * grid.cell.length
         const end = start + length * grid.cell.length
         const originalChunk = new RGBAImage(originalFlat.data.slice(start*4, end*4), grid.cell.width)
         const imageChunk = new RGBAImage(imageFlat.data.slice(start*4, end*4), grid.cell.width)
-        const lettersChunk = new RGBAImage(lettersFlat.data.slice(start*4, end*4), grid.cell.width)
         const imageDiffChunk = new ImageDiff(imageDiffFlat.data.slice(start, end).buffer, grid.cell.width)
-        const result = await worker.calc(originalChunk, imageChunk, lettersChunk, imageDiffChunk, length, grid.cell.length, bitmaps, palette, animation, (newImage: ImageData)=>{
+        const data: CalcData = {original: originalChunk, image: imageChunk, imageDiff: imageDiffChunk}
+        function draw(newImage: ImageData){
           imageFlat.data.set(newImage.data, start*4)
           unflattenImageTo(image, imageFlat, grid)
           canvas.context.putImageData(image, 0, 0)
-        })
+        }
+        let result
+        if(palette){
+          result = await worker.calcPalette({data, gridLength: length, cellLength: grid.cell.length, bitmaps, animation, palette}, draw)
+        }
+        else{
+          result = await worker.calc({data, gridLength: length, cellLength: grid.cell.length, bitmaps, animation}, draw)
+        }
         return {result, start}
       })
     }
@@ -211,8 +222,8 @@ async function drawImage(canvas: Canvas, original: ImageData, frame: Frame){
 }
 
 const idle = Symbol("idle")
-async function* doParallel(workers: Worker[], jobs: ((worker: Worker)=>Promise<any>)[]){
-  var workerPool: Promise<{worker: Worker, index: number, result: any}>[] = workers
+async function* doParallel<T>(workers: Worker[], jobs: ((worker: Worker)=>Promise<T>)[]){
+  var workerPool: Promise<{worker: Worker, index: number, result: T | typeof idle}>[] = workers
     .slice(0, jobs.length)
     .map((worker, index)=>{return Promise.resolve({worker, index, result: idle})})
   for(const job of jobs){
@@ -222,9 +233,10 @@ async function* doParallel(workers: Worker[], jobs: ((worker: Worker)=>Promise<a
       yield result
     }
   }
-  while(workerPool.some(job=>job != undefined)){
-    const {result, index} = await Promise.race(workerPool.filter(job=>job!=undefined))
-    workerPool[index] = undefined
+  const endPool = workerPool as Promise<{worker: Worker, index: number, result: T}>[]
+  while(endPool.some(job=>job != undefined)){
+    const {result, index} = await Promise.race(endPool.filter(job=>job!=undefined))
+    endPool[index] = undefined
     yield result
   }
 }

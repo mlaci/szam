@@ -436,12 +436,31 @@ export type CloneObjectTypes<T> = T extends {readonly kind: infer K} ? K extends
  * @param bitmapObject - A Structurally cloned bitmap.
  * @returns Bitmap subclass instance.
  */
-export function fromClone<T>(clone: T | CloneObjectTypes<T>){
+function fromClone<T>(clone: T | CloneObjectTypes<T>){
   const kind = (clone as CloneObject)?.kind
   if(kinds[kind]){
       return Object.setPrototypeOf(clone, kinds[kind].prototype) as CloneObjectTypes<T>
   }
   else{
     return clone
+  }
+}
+
+export function fromDeepClone<T>(clone: T | CloneObjectTypes<T>): T {
+  const kind = (clone as CloneObject)?.kind
+  if(clone instanceof Array){
+    return clone.map(fromDeepClone) as unknown as T
+  }
+  else if(clone instanceof Object){
+    const kind = (clone as CloneObject)?.kind
+    if(kinds[kind]){
+      return fromClone(clone)
+    }
+    else{
+      return Object.fromEntries(Object.entries(clone).map(([key, value])=>[key, fromDeepClone(value)])) as T
+    }
+  }
+  else{
+    return fromClone(clone)
   }
 }
