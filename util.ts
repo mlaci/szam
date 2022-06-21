@@ -127,22 +127,16 @@ export function* shuffle(array: any[]){
 }
 
 /**
- * {@link https://www.w3.org/TR/compositing-1/itemode}
- */
-type CompositeMode = "clear" | "copy" | "source-over" | "destination-over" | "source-in" |    
-"destination-in" | "source-out" | "destination-out" | "source-atop" |    
-"destination-atop" | "xor" | "lighter"
-/**
  * Composes a source and a destination canvas contents with the specified composition mode.
  * The composed image is drawn into the destination canvas.
  * @param dest - The canvas where the composed image is drawn.
  * @param source - The canvas with the source content.
- * @param mode - Composition mode.
+ * @param operation - Global composition operation.
  */
-export function compose(dest: Canvas, source: Canvas, mode: CompositeMode = "source-over"){
+export function compose(dest: Canvas, source: Canvas, operation: GlobalCompositeOperation = "source-over"){
   const destContext = dest.getContext("2d")
   const originalOperation = destContext.globalCompositeOperation
-  destContext.globalCompositeOperation = mode
+  destContext.globalCompositeOperation = operation
   destContext.drawImage(source, 0, 0)
   destContext.globalCompositeOperation = originalOperation
 }
