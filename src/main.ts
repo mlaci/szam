@@ -77,7 +77,7 @@ const chevyFrame: Frame = {
   title: "Chevy",
   imageSource: "https://upload.wikimedia.org/wikipedia/commons/1/1c/1998_Chevrolet_Corvette_C5_at_Hatfield_Heath_Festival_2017.jpg",
   alphabet: numbers,
-  palette: [...Array(1)].fill(basicColors.map(colorNameToRGB)).flat().map(linearizeColor), //{quantization: 16},
+  //palette: [...Array(1)].fill(basicColors.map(colorNameToRGB)).flat().map(linearizeColor), //{quantization: 16},
   backgroundColor: [255, 255, 255] as const,
   animation: true,
   epilogue: {
@@ -118,18 +118,18 @@ async function playFrame(canvas: Canvas, frame: Frame){
   const originalCanvas = createCanvasFrom(original)
   canvas.width = original.width
   canvas.height = original.height
-  const paletteImage = new PaletteImage(new RGBAImage(original))
   canvas.context.putImageData(original, 0, 0)
-  //const originalLinear = linearizeImage(paletteImage.getImageData())
-  //await drawImage(canvas, originalLinear, frame)
+  const image = new RGBAImage(original)
+  const originalLinear = linearizeImage(image.imageData)
+  await drawImage(canvas, originalLinear, frame)
   compose(canvas, originalCanvas, "destination-over")
-  /*const final = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
+  const final = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
   while(true){
     canvas.context.putImageData(original, 0, 0)
     await new Promise((resolve) => setTimeout(resolve, 500))
     canvas.context.putImageData(final, 0, 0)
     await new Promise((resolve) => setTimeout(resolve, 500))
-  }*/
+  }
 }
 
 async function drawImage(canvas: Canvas, originalLinear: ImageData, frame: Frame){
