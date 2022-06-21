@@ -4,3 +4,4 @@ node_modules
 !calibrate.js
 !emoji-download.js
 !emoji.js
+!rollup.config.js
