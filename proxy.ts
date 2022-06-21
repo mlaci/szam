@@ -35,7 +35,7 @@ function generatorPostMessage(target: Worker, name: string, message: any, next: 
 
 export class CalcWorker extends Worker {
   constructor(){
-    super("./worker.js", {type: "module"})
+    super("./worker-bundle.js")
   }
   async calc(params: CalcParameters, draw: (lettersFlat: ImageData) => void){
     return this.callFunction("calc", params, draw) as Promise<{image: ImageData, imageDiff: ImageDiff}>
