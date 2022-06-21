@@ -1,5 +1,5 @@
-import type { Bitmap } from "./bitmap.js"
-import type { RGB, Image, ImageDiff } from "./image.js"
+import type { ImageDiff } from "./image.js"
+import type { CalcParameters, CalcPaletteParameters} from "./worker.js"
 
 function postMessage(target: Worker, name: string, message: any){
   const id = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(16)
@@ -37,18 +37,13 @@ export class CalcWorker extends Worker {
   constructor(){
     super("./worker.js", {type: "module"})
   }
-  async calc(
-    original: Image, 
-    image: Image, 
-    letters: Image, 
-    imageDiff: ImageDiff,
-    gridlength: number, 
-    cellLength: number, 
-    bitmaps: Bitmap[],
-    palette: RGB[],
-    animation: boolean,
-    draw: (lettersFlat: ImageData) => void
-  ){
+  async calc(params: CalcParameters, draw: (lettersFlat: ImageData) => void){
+    return this.callFunction("calc", params, draw) as Promise<{image: ImageData, imageDiff: ImageDiff}>
+  }
+  async calcPalette(params: CalcPaletteParameters, draw: (lettersFlat: ImageData) => void){
+    return this.callFunction("calcPalette", params, draw) as Promise<{image: ImageData, imageDiff: ImageDiff}>
+  }
+  private callFunction(name: string, params: any, draw: (lettersFlat: ImageData) => void){
     var done = false
     var lastMessage: ImageData
     var newMessage = false
@@ -71,7 +66,6 @@ export class CalcWorker extends Worker {
       }
     }
     nextFrame()
-    const message = [original, image, letters, imageDiff, gridlength, cellLength, bitmaps, palette, animation]
-    return generatorPostMessage(this, "calc", message, next) as Promise<{imageFlat: ImageData, imageDiffFlat: ImageDiff}>
+    return generatorPostMessage(this, name, params, next)
   }
 }

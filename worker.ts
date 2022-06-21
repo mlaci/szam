@@ -2,7 +2,7 @@ import type { RGB, Image } from "./image.js"
 import type { Bitmap } from "./bitmap.js"
 import {
   shuffle,
-  fromClone
+  fromDeepClone
 } from "./util.js"
 
 import {
@@ -19,20 +19,20 @@ import {
   maskColorsFrom
 } from "./bitmap.js"
 
-import { centroid, getMedian } from "./geometric-median.js"
+import { getMedian } from "./geometric-median.js"
 
 const BACKGROUND_COLOR = [255, 255, 255] as const
 
-function getPenalty(original: Image, image: Image, imageDiff: ImageDiff, cellOffset: number, bitmap: Bitmap): number {
-  let penalty = 0
+function getError(original: Image, image: Image, imageDiff: ImageDiff, cellOffset: number, bitmap: Bitmap): number {
+  let error = 0
   for(let offset = 0; offset < bitmap.length; offset++){
     const pixelOffset = cellOffset + offset
     const originalColor = original.getPixel(pixelOffset)
     const imageColor = blendTo(linearizeColor(image.getPixel(pixelOffset)), BACKGROUND_COLOR)
     const prevDiff = imageDiff.getDiff(pixelOffset)
-    penalty = penalty - prevDiff + colorDistance(originalColor, imageColor)
+    error = error - prevDiff + colorDistance(originalColor, imageColor)
   }
-  return penalty
+  return error
 }
 
 function setDiff(image: Image, original: Image, imageDiff: ImageDiff, cellOffset: number, bitmap: Bitmap): void {
@@ -44,81 +44,114 @@ function setDiff(image: Image, original: Image, imageDiff: ImageDiff, cellOffset
   }
 }
 
-type CalcParameters = [
+export interface CalcData {
   original: RGBAImage,
   image: RGBAImage,
-  letters: RGBAImage,
-  imageDiff: ImageDiff,
-  gridlength: number,
+  imageDiff: ImageDiff
+}
+
+export interface CalcParameters {
+  data: CalcData,
+  gridLength: number,
   cellLength: number,
   bitmaps: Bitmap[],
-  palette: RGB[],
   animation: boolean
-]
+}
 
-async function* calc(...args: CalcParameters){
-  const [original, image, lettersOriginal, imageDiff, gridlength, cellLength, bitmapClones, palette, animation] = args.map(fromClone) as CalcParameters
-  const bitmaps = bitmapClones.map(fromClone)
-  const cells: {
-    offset: number,
-    bitmaps: Bitmap[],
-    best: {
-      penalty: number, 
-      bitmap?: Bitmap, 
-      color?: RGB
-    },
-    actualColor?: RGB
-  }[] = []
-  for(let cellIndex = 0; cellIndex < gridlength; cellIndex++){
+interface Cell {
+  offset: number,
+  bitmaps: Bitmap[],
+  best: {
+    error: number, 
+    bitmap?: Bitmap, 
+    color?: RGB
+  },
+  actualColor?: RGB
+}
+
+function getCells(gridLength: number, cellLength: number, bitmaps: Bitmap[]){
+  const cells: Cell[] = []
+  for(let cellIndex = 0; cellIndex < gridLength; cellIndex++){
     cells.push({
       offset: cellIndex * cellLength, 
       bitmaps: [...shuffle(bitmaps)],
       best: {
-        penalty: Infinity
+        error: Infinity
       }
     })
   }
+  return cells
+}
+
+function calcErrors(data: CalcData, letters: RGBAImage, cells: Cell[], bitmapIndex: number): void {
+  const {original, imageDiff} = data
+  for(let cell of cells){
+    const {bitmaps, offset} = cell
+    const bitmap = bitmaps[bitmapIndex]
+    cell.best ??= {error: Infinity}
+    const error = getError(original, letters, imageDiff, offset, bitmap)
+    if (error < cell.best.error){
+      cell.best.error = error
+      cell.best.bitmap = bitmap
+      cell.best.color = cell.actualColor
+    }
+  }
+}
+
+async function* calc({data, gridLength, cellLength, bitmaps, animation}: CalcParameters){
+  const {original, image, imageDiff} = data
+  const cells = getCells(gridLength, cellLength, bitmaps)
   for(let i = 0; i < bitmaps.length; i++){
-    const letters = new RGBAImage(lettersOriginal.imageData.data.slice(0), lettersOriginal.width)
+    const letters = new RGBAImage(image.imageData)
     for(let cell of cells){
       const {offset, bitmaps} = cell
       const bitmap = bitmaps[i]
       const colors = maskColorsFrom(original, offset, bitmap)
-      if(palette){
-        const medianColor = getMedian(colors) as RGB
-        let smallestDistance = Infinity
-        let nearestColor: RGB
-        for(let color of palette){
-          const distance = colorDistance(medianColor, color)
-          if(distance < smallestDistance){
-            smallestDistance = distance
-            nearestColor = color
-          }
-        }
-        cell.actualColor = nonlinearizeColor(nearestColor)
-      }
-      else{
-        const medianColor = nonlinearizeColor(getMedian(colors) as RGB)
-        cell.actualColor = medianColor
-      }
+      cell.actualColor = nonlinearizeColor(getMedian(colors) as RGB)
       drawBitmapTo(letters, offset, bitmap, cell.actualColor)
     }
-
     if(animation){
       yield letters.imageData
     }
+    calcErrors(data, letters, cells, i)
+  }
+  for(let {best: {bitmap, color}, offset} of cells){
+    drawBitmapTo(image, offset, bitmap, color)
+    setDiff(image, original, imageDiff, offset, bitmap)
+  }
+  return {image: image.imageData, imageDiff}
+}
 
+export interface CalcPaletteParameters extends CalcParameters {
+  palette: RGB[]
+}
+
+async function* calcPalette({data, gridLength, cellLength, bitmaps, animation, palette}: CalcPaletteParameters){
+  const {original, image, imageDiff} = data
+  const cells = getCells(gridLength, cellLength, bitmaps)
+  for(let i = 0; i < bitmaps.length; i++){
+    const letters = new RGBAImage(image.imageData)
     for(let cell of cells){
-      const {bitmaps, offset} = cell
+      const {offset, bitmaps} = cell
       const bitmap = bitmaps[i]
-      cell.best ??= {penalty: Infinity}
-      const diffPenalty = getPenalty(original, letters, imageDiff, offset, bitmap)
-      if (diffPenalty < cell.best.penalty) {
-        cell.best.penalty = diffPenalty
-        cell.best.bitmap = bitmap
-        cell.best.color = cell.actualColor
+      const colors = maskColorsFrom(original, offset, bitmap)
+      const medianColor = getMedian(colors) as RGB
+      let smallestDistance = Infinity
+      let nearestColor: RGB
+      for(let color of palette){
+        const distance = colorDistance(medianColor, color)
+        if(distance < smallestDistance){
+          smallestDistance = distance
+          nearestColor = color
+        }
       }
+      cell.actualColor = nonlinearizeColor(nearestColor)
+      drawBitmapTo(letters, offset, bitmap, cell.actualColor)
     }
+    if(animation){
+      yield letters.imageData
+    }
+    calcErrors(data, letters, cells, i)
   }
   for(let {best: {bitmap, color}, offset} of cells){
     drawBitmapTo(image, offset, bitmap, color)
@@ -128,12 +161,13 @@ async function* calc(...args: CalcParameters){
 }
 
 const functions = {
-  "calc": calc
+  "calc": calc,
+  "calcPalette": calcPalette
 }
 
 globalThis.addEventListener("message", async ({data: {name, id, message}})=>{
   if(functions[name].constructor.name == "AsyncGeneratorFunction"){
-    const generator: AsyncGenerator = functions[name](...message)
+    const generator: AsyncGenerator = functions[name](fromDeepClone(message))
     var done = false
     while(!done){
       const result = await generator.next()
@@ -142,7 +176,7 @@ globalThis.addEventListener("message", async ({data: {name, id, message}})=>{
     }
   }
   else{
-    const result = await functions[name](...message)
+    const result = await functions[name](fromDeepClone(message))
     globalThis.postMessage({id, message: result})
   }
 })
