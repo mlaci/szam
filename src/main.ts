@@ -118,12 +118,12 @@ async function playFrame(canvas: Canvas, frame: Frame){
   const originalCanvas = createCanvasFrom(original)
   canvas.width = original.width
   canvas.height = original.height
-  //const paletteImage = new PaletteImage(new RGBAImage(original))
+  const paletteImage = new PaletteImage(new RGBAImage(original))
   canvas.context.putImageData(original, 0, 0)
-  /*const originalLinear = linearizeImage(paletteImage.getImageData())
-  await drawImage(canvas, originalLinear, frame)
+  //const originalLinear = linearizeImage(paletteImage.getImageData())
+  //await drawImage(canvas, originalLinear, frame)
   compose(canvas, originalCanvas, "destination-over")
-  const final = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
+  /*const final = canvas.context.getImageData(0, 0, canvas.width, canvas.height)
   while(true){
     canvas.context.putImageData(original, 0, 0)
     await new Promise((resolve) => setTimeout(resolve, 500))

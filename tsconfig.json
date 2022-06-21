@@ -5,17 +5,17 @@
     "module": "ES6"
   },
   "files": [
-    "types.ts",
-    "image.ts",
-    "color.ts",
-    "geometric-median.ts",
-    "bitmap.ts",
-    "huffman.ts",
-    "util.ts",
-    "text.ts",
-    "proxy.ts",
-    "worker.ts",
-    "flatten.ts",
-    "main.ts"
+    "src/types.ts",
+    "src/image.ts",
+    "src/color.ts",
+    "src/geometric-median.ts",
+    "src/bitmap.ts",
+    "src/huffman.ts",
+    "src/util.ts",
+    "src/text.ts",
+    "src/proxy.ts",
+    "src/worker.ts",
+    "src/flatten.ts",
+    "src/main.ts"
   ]
 }
